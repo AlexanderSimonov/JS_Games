@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <!-- АДАПТИВНЫЙ МЕТАТЕГ ДЛЯ СМАРТФОНОВ И ПЛАНШЕТОВ -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Cube Collapse Deluxe</title>
+</head>
+<body>
+
+<div id="game-container">
+    <div id="floating-text-container" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 5; overflow: hidden;"></div>
+    <div id="top-bar" style="flex-direction: column; gap: 8px; align-items: stretch; min-height: auto; padding: 12px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+            <div class="stat-box"><span class="stat-label">Счет</span><span id="score">0</span></div>
+            <div class="stat-box"><span class="stat-label" id="center-stat-label">Цели</span><div id="targets-container"></div></div>
+            <div class="stat-box" style="flex-direction: row; gap: 15px; align-items: center;">
+                <div class="stat-box"><span class="stat-label" id="right-stat-label">Ходы</span><span id="moves">20</span></div>
+                <button id="exit-btn" onclick="exitToMenu()">Выход 🚪</button>
+            </div>
+        </div>
+        <div id="live-counter-container" style="display: none; justify-content: center; gap: 8px; background: rgba(0,0,0,0.2); padding: 6px; border-radius: 4px; border: 1px solid #444;"></div>
+    </div>
+    <div id="grid"></div>
+    
+    <div id="booster-info-modal" style="display: none; position: absolute; bottom: 70px; background: rgba(0,0,0,0.95); color: #fff; border: 1px solid #e67e22; padding: 12px; border-radius: 6px; z-index: 30; width: 280px; text-align: center; box-shadow: 0 4px 15px rgba(0,0,0,0.5);">
+        <p id="booster-info-text" style="margin: 0 0 10px 0; font-size: 13px; line-height: 1.4;"></p>
+        <button class="btn" style="padding: 4px 12px; font-size: 12px; max-width: 60px; margin: 0;" onclick="closeBoosterInfo()">OK</button>
+    </div>
+
+    <div id="booster-bar" style="margin-top: 15px; display: flex; flex-direction: row; gap: 6px; justify-content: center; align-items: center; width: 100%; box-sizing: border-box; padding: 0 4px;">
+        <div style="display: flex; align-items: center; gap: 2px; flex: 1; max-width: 140px;">
+            <button id="bomb-btn" class="btn">Бомба 💣 (1)</button>
+            <button class="info-btn" onclick="showBoosterInfo('bomb')">ℹ️</button>
+        </div>
+        <div style="display: flex; align-items: center; gap: 2px; flex: 1; max-width: 140px;">
+            <button id="hammer-btn" class="btn" style="background: #2980b9;">Молот 🔨 (1)</button>
+            <button class="info-btn" style="border-color: #2980b9; color: #3498db;" onclick="showBoosterInfo('hammer')">ℹ️</button>
+        </div>
+        <div style="display: flex; align-items: center; gap: 2px; flex: 1; max-width: 140px;">
+            <button id="swap-btn" class="btn" style="background: #27ae60;">Замена 🔄 (1)</button>
+            <button class="info-btn" style="border-color: #27ae60; color: #2ecc71;" onclick="showBoosterInfo('swap')">ℹ️</button>
+        </div>
+    </div>
+    <div id="mode-screen">
+        <h2>Выберите режим игры</h2>
+        <button id="resume-btn" class="menu-btn" style="background: #27ae60; display: none; margin-bottom: 15px;" onclick="resumeSavedGame()">Продолжить игру 💾</button>
+        
+        <div class="menu-box">
+            <button class="menu-btn" onclick="selectMode('targets')">🎯 Режим целей (20 ходов)</button>
+            <button class="menu-btn" onclick="selectMode('free')">♾️ Свободная игра (Без лимита)</button>
+            <button class="menu-btn" onclick="selectMode('chain')">🔗 Рекордная цепочка (20 ходов)</button>
+            <button class="menu-btn" style="background: #9b59b6;" onclick="selectMode('chain_inf')">♾️🔗 Бесконечная цепочка</button>
+        </div>
+        <div id="size-panel">
+            <h4>📏 Размер поля: <span id="size-value">30 х 30</span></h4>
+            <input type="range" id="size-slider" min="10" max="40" step="5" value="30" oninput="updateSizeSetting(this.value)">
+        </div>
+        <div id="difficulty-panel">
+            <h4>⚙️ Сложность генерации поля:</h4>
+            <div style="display: flex; justify-content: center; gap: 5px;">
+                <button id="diff-easy" class="diff-btn" onclick="setDifficulty('easy')">Легкая (4 цв.)</button>
+                <button id="diff-medium" class="diff-btn active" onclick="setDifficulty('medium')">Средняя (6 цв.)</button>
+                <button id="diff-hard" class="diff-btn" onclick="setDifficulty('hard')">Высокая (8 цв.)</button>
+            </div>
+        </div>
+        <div id="highscores-panel" style="position: relative; padding-bottom: 50px;">
+            <h3 style="line-height: 1.4; margin-bottom: 12px;">🏆 Рекорды (<span id="hs-diff-title"></span>, <span id="hs-size-title"></span>):</h3>
+            <p>🎯 Режим целей: <span id="hs-targets">0</span> очков</p>
+            <p>♾️ Свободная игра: <span id="hs-free">0</span> очков</p>
+            <p>🔗 Рекордная цепочка: <span id="hs-chain">0</span> куб.</p>
+            <p style="color: #c39bd3; margin-bottom: 10px;">♾️🔗 Бесконечная цепочка: <span id="hs-chain_inf">0</span> куб.</p>
+            <button id="reset-hs-btn" style="position: absolute; bottom: 12px; right: 15px; font-size: 10px; padding: 5px 10px; margin: 0; background: #c0392b; color: #fff; border: none; border-radius: 3px; cursor: pointer; font-weight: bold;" onclick="resetHighscores()">Сбросить рекорды 🔄</button>
+        </div>
+    </div>
+
+    <div id="game-over">
+        <canvas id="fw-canvas"></canvas>
+        <div id="go-content" style="z-index: 12; text-align: center; width: 100%; max-width: 320px; box-sizing: border-box; padding: 0 10px;">
+            <h2 id="go-title">Конец игры</h2>
+            <p id="go-details">Счет: <span id="f-score">0</span> | Взорвано: <span id="f-dest">0</span></p>
+            <p id="new-record-msg" style="color: #FFD700; font-weight: bold; font-size: 24px; display: none; text-shadow: 0 0 10px #ffb300;">🎉 НОВЫЙ РЕКОРД! 🎉</p>
+            <button id="restart-btn" class="menu-btn" style="background:#33FF57; color:#222; margin-top: 15px; width: 100%;" onclick="location.reload()">В меню</button>
+        </div>
+    </div>
+</div>
+<style>
+    /* Блокировка системного скролла и зума на мобильных устройствах */
+    html, body { position: fixed; width: 100%; height: 100%; overflow: hidden; margin: 0; padding: 0; background: #222; -webkit-overflow-scrolling: touch; touch-action: none; }
+    body { display: flex; justify-content: center; align-items: center; font-family: sans-serif; user-select: none; -webkit-user-select: none; }
+    
+    /* Контейнер адаптируется под размеры экрана смартфона */
+    #game-container { display: flex; flex-direction: column; align-items: center; position: relative; width: 100%; max-width: 480px; height: 100%; max-height: 100vh; padding: 10px; box-sizing: border-box; justify-content: center; }
+    #top-bar { display: flex; justify-content: space-between; align-items: center; width: 100%; color: #fff; background: #333; padding: 8px; border-radius: 4px; box-sizing: border-box; margin-bottom: 8px; }
+    .stat-box { display: flex; flex-direction: column; align-items: center; }
+    .stat-label { font-size: 10px; color: #aaa; text-transform: uppercase; margin-bottom: 2px; }
+    #exit-btn { background: #c0392b; color: white; border: none; padding: 6px 8px; font-size: 11px; font-weight: bold; border-radius: 4px; cursor: pointer; }
+    #targets-container { display: flex; gap: 6px; }
+    .target-item { display: flex; align-items: center; gap: 4px; background: #444; padding: 3px 8px; border-radius: 20px; font-size: 12px; font-weight: bold; }
+    .target-badge { width: 12px; height: 12px; border-radius: 50%; }
+    .target-completed { text-decoration: line-through; opacity: 0.5; background: #2bcf46; color: #222; }
+    #grid { display: grid; gap: 1px; background: #444; padding: 4px; border-radius: 4px; touch-action: none; -webkit-tap-highlight-color: transparent; }
+    .cell { cursor: pointer; box-sizing: border-box; }
+    .cell.highlight { border: 1px solid #fff !important; box-shadow: inset 0 0 4px #fff; opacity: 0.9; }
+    .cell.selected-swap { border: 2px solid #3498db !important; box-shadow: inset 0 0 8px #3498db, 0 0 10px #3498db !important; transform: scale(0.95); z-index: 2; }
+    #grid.bomb-mode .cell.highlight { border: 1px solid #f33 !important; box-shadow: inset 0 0 4px #f33, 0 0 6px #f33; }
+    
+    /* Оптимизация кнопок под тач-нажатия пальцем */
+    .btn { padding: 10px 4px; font-size: 11px; background: #e67e22; color: #fff; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; flex: 1; text-align: center; white-space: nowrap; transition: background-color 0.1s; -webkit-tap-highlight-color: transparent; }
+    #bomb-btn.active { background: #f33; animation: pulse 0.5s infinite alternate; }
+    #hammer-btn.active { background: #2980b9; animation: pulse 0.5s infinite alternate; }
+    #swap-btn.active { background: #27ae60; animation: pulse 0.5s infinite alternate; }
+    #bomb-btn:disabled, #hammer-btn:disabled, #swap-btn:disabled { background: #555; color: #888; cursor: default; }
+    
+    .info-btn { background: transparent; border: 1px solid #e67e22; color: #e67e22; border-radius: 4px; cursor: pointer; width: 24px; height: 34px; font-size: 11px; font-weight: bold; display: flex; align-items: center; justify-content: center; -webkit-tap-highlight-color: transparent; }
+
+    /* Резиновая верстка меню под любые экраны мобильных */
+    .menu-box { display: flex; flex-direction: column; gap: 10px; width: 100%; max-width: 320px; align-items: center; box-sizing: border-box; }
+    .menu-btn { width: 100%; max-width: 320px; padding: 12px 10px; font-size: 14px; background: #e67e22; color: #fff; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; text-align: center; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    .menu-btn:active { transform: scale(0.98); }
+    
+    .btn.flash-bomb { animation: flashBombAnim 0.6s ease-out; }
+    .btn.flash-hammer { animation: flashHammerAnim 0.6s ease-out; }
+    .btn.flash-swap { animation: flashSwapAnim 0.6s ease-out; }
+    @keyframes flashBombAnim { 0% { background-color: #ff3333; } 100% { background-color: #e67e22; } }
+    @keyframes flashHammerAnim { 0% { background-color: #3498db; } 100% { background-color: #2980b9; } }
+    @keyframes flashSwapAnim { 0% { background-color: #2ecc71; } 100% { background-color: #27ae60; } }
+    
+    @keyframes pulse { from { transform: scale(1); } to { transform: scale(1.03); } }
+    #mode-screen, #game-over { position: absolute; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.96); color:#fff; display: flex; flex-direction: column; justify-content: center; align-items: center; border-radius: 4px; z-index: 10; padding: 15px; box-sizing: border-box; overflow-y: auto; }
+    #game-over { display: none; background: rgba(0,0,0,0.9); overflow: hidden; }
+    #difficulty-panel, #size-panel { margin-top: 12px; width: 100%; max-width: 320px; text-align: center; box-sizing: border-box; }
+    #difficulty-panel h4, #size-panel h4 { margin: 0 0 6px 0; font-size: 12px; color: #bbb; text-transform: uppercase; }
+    #size-panel input[type="range"] { width: 100%; accent-color: #e67e22; cursor: pointer; }
+    .diff-btn { padding: 6px 4px; font-size: 11px; background: #444; color: #fff; border: 1px solid #555; border-radius: 4px; cursor: pointer; font-weight: bold; flex: 1; text-align: center; }
+    .diff-btn.active { background: #2980b9; border-color: #3498db; }
+    #highscores-panel { margin-top: 15px; background: #2a2a2a; padding: 12px 20px; border-radius: 6px; border: 1px solid #444; width: 100%; max-width: 320px; box-sizing: border-box; text-align: left; }
+    #highscores-panel h3 { margin-top: 0; color: #ffb300; text-align: center; font-size: 14px; }
+    #highscores-panel p { margin: 5px 0; font-size: 12px; color: #ddd; }
+    #highscores-panel span { font-weight: bold; color: #fff; float: right; }
+    #fw-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 11; pointer-events: none; }
+    .live-count-badge { display: flex; align-items: center; gap: 4px; font-size: 11px; font-weight: bold; color: #fff; padding: 2px 4px; background: #333; border-radius: 4px; }
+    .live-count-dot { width: 8px; height: 10px; border-radius: 50%; }
+    .floating-bomb-text { position: absolute; font-weight: bold; font-size: 16px; color: #f39c12; text-shadow: 0 0 6px #f1c40f; pointer-events: none; animation: floatUpFade 1s ease-out forwards; z-index: 25; }
+    @keyframes floatUpFade { 0% { transform: translateY(0) scale(0.8); opacity: 0; } 20% { transform: translateY(-5px) scale(1); opacity: 1; } 100% { transform: translateY(-40px); opacity: 0; } }
+</style>
+<script>
+    let ROWS = 30, COLS = 30, EMPTY = '#222222';
+    const ALL_COLORS = ['#FF5733', '#33FF57', '#3357FF', '#F3FF33', '#FF33F3', '#33FFF0', '#FFA500', '#9B59B6'];
+    let currentColors = [...ALL_COLORS], difficulty = 'medium', gridData = [], score = 0, totalDest = 0, movesLeft = 20, bombsLeft = 1, hammersLeft = 1, swapsLeft = 1, isGameOver = false, isBombActive = false, isHammerActive = false, isSwapActive = false, targets = [], currentMode = 'targets', maxChainRecord = 0;
+    const DIFF_NAMES = { easy: "Легкая", medium: "Средняя", hard: "Высокая" };
+
+    const gEl = document.getElementById('grid'), sEl = document.getElementById('score'), mEl = document.getElementById('moves'), tCont = document.getElementById('targets-container'), bBtn = document.getElementById('bomb-btn'), goScr = document.getElementById('game-over'), mScr = document.getElementById('mode-screen'), cStatLabel = document.getElementById('center-stat-label'), rStatLabel = document.getElementById('right-stat-label');
+    const hBtn = document.getElementById('hammer-btn'), swBtn = document.getElementById('swap-btn'), bBar = document.getElementById('booster-bar');
+    const liveContainer = document.getElementById('live-counter-container');
+
+    let currentHoveredCells = [], firstSelectedSwapCell = null;
+    let lastTouchElement = null; // Для отслеживания перемещения пальца по экрану мобильного
+
+    function selectMode(mode) { currentMode = mode; mScr.style.display = 'none'; initGame(); }
+    function checkActiveSaveSession() { const hasSave = localStorage.getItem('cc_save_active'); const rBtn = document.getElementById('resume-btn'); if (hasSave === 'true' && rBtn) { rBtn.style.display = 'block'; } else if (rBtn) { rBtn.style.display = 'none'; } }
+    function initGame() {
+        gridData = []; gEl.innerHTML = ''; score = 0; totalDest = 0; bombsLeft = 1; hammersLeft = 1; swapsLeft = 1; isGameOver = false; isBombActive = false; isHammerActive = false; isSwapActive = false; firstSelectedSwapCell = null; currentHoveredCells = []; lastTouchElement = null;
+        sEl.textContent = score; gEl.className = ''; bBtn.className = 'btn'; hBtn.className = 'btn'; swBtn.className = 'btn'; hBtn.style.backgroundColor = '#2980b9'; swBtn.style.backgroundColor = '#27ae60'; goScr.style.display = 'none'; closeBoosterInfo();
+        document.getElementById('new-record-msg').style.display = 'none'; if (typeof fwAnimationId !== 'undefined') cancelAnimationFrame(fwAnimationId);
+        
+        // МОБИЛЬНЫЙ АДАПТИВНЫЙ РАСЧЕТ: Выбираем наименьшую доступную сторону экрана смартфона
+        const maxGridPixels = Math.min(window.innerWidth - 24, window.innerHeight - 170);
+        const cellSize = Math.floor(maxGridPixels / Math.max(ROWS, COLS));
+        gEl.style.gridTemplateColumns = 'repeat(' + COLS + ', ' + cellSize + 'px)'; gEl.style.gridTemplateRows = 'repeat(' + ROWS + ', ' + cellSize + 'px)';
+        bBar.style.display = 'flex'; liveContainer.style.display = 'flex';
+
+        document.querySelectorAll('.info-btn').forEach(btn => btn.style.display = (currentMode === 'chain_inf') ? 'none' : 'flex');
+
+        if (currentMode === 'targets') {
+            movesLeft = 20; mEl.style.display = 'block'; rStatLabel.style.display = 'block'; rStatLabel.textContent = "Ходы"; mEl.textContent = movesLeft; cStatLabel.textContent = "Цели"; tCont.style.display = 'flex';
+        } else if (currentMode === 'free') {
+            movesLeft = Infinity; mEl.style.display = 'none'; rStatLabel.style.display = 'none'; cStatLabel.textContent = "Режим"; tCont.style.display = 'flex'; tCont.innerHTML = '<div class="target-item">Свободный</div>';
+        } else if (currentMode === 'chain') {
+            movesLeft = 20; maxChainRecord = 0; mEl.style.display = 'block'; rStatLabel.style.display = 'block'; rStatLabel.textContent = "Ходы"; mEl.textContent = movesLeft; cStatLabel.textContent = "Рекорд цепи"; tCont.style.display = 'flex'; updateChainUI();
+        } else if (currentMode === 'chain_inf') {
+            movesLeft = Infinity; maxChainRecord = 0; bombsLeft = 0; hammersLeft = 0; swapsLeft = 0;
+            mEl.style.display = 'none'; rStatLabel.style.display = 'none'; bBar.style.display = 'none';
+            cStatLabel.textContent = "Рекорд цепи"; tCont.style.display = 'flex'; updateChainUI();
+        }
+        updateBombBtn(); updateHammerBtn(); updateSwapBtn();
+        for (let r = 0; r < ROWS; r++) {
+            gridData[r] = [];
+            for (let c = 0; c < COLS; c++) {
+                gridData[r][c] = currentColors[Math.floor(Math.random() * currentColors.length)];
+                const cell = document.createElement('div'); cell.className = 'cell'; cell.id = 'c-' + r + '-' + c;
+                cell.style.width = cellSize + 'px'; cell.style.height = cellSize + 'px';
+                
+                // Десктопные события сохраняем для совместимости
+                cell.addEventListener('mouseenter', () => handleHover(r, c, true)); 
+                cell.addEventListener('mouseleave', () => handleHover(r, c, false));
+                cell.addEventListener('click', (e) => handleClick(r, c, e)); gEl.appendChild(cell);
+            }
+        }
+
+        // МОБИЛЬНЫЕ TOUCH-ЛИСТЕНЕРЫ: Позволяют пальцу подсвечивать группы при движении и взрывать при тапе
+        gEl.addEventListener('touchstart', handleMobileTouch, { passive: false });
+        gEl.addEventListener('touchmove', handleMobileTouch, { passive: false });
+        gEl.addEventListener('touchend', handleMobileTouchEnd, { passive: false });
+
+        if (currentMode === 'targets') generateTargets();
+        updateLiveCubesCounter(); drawGrid(); saveGameSession();
+        setTimeout(() => { if (!hasMoves() && bombsLeft <= 0 && hammersLeft <= 0 && swapsLeft <= 0) finishTurn(); }, 100);
+    }
+    function updateChainUI() { tCont.innerHTML = '<div class="target-item" style="background:#9b59b6; color:white;">🔥 ' + maxChainRecord + ' куб.</div>'; }
+
+    function generateTargets() {
+        targets = []; const fieldColorCounts = {}; currentColors.forEach(color => fieldColorCounts[color] = 0);
+        for (let r = 0; r < ROWS; r++) { for (let c = 0; c < COLS; c++) { const color = gridData[r][c]; if (fieldColorCounts[color] !== undefined) fieldColorCounts[color]++; } }
+        const shuf = [...currentColors].sort(() => 0.5 - Math.random()); const countTargets = Math.min(3, shuf.length);
+        for (let i = 0; i < countTargets; i++) {
+            const targetColor = shuf[i]; const cubesAvailable = fieldColorCounts[targetColor] || 0; if (cubesAvailable < 5) continue;
+            const multiplier = Math.max(1, Math.floor((ROWS * COLS) / 400));
+            let requestedAmount = (Math.floor(Math.random() * 11) + 10) * multiplier; requestedAmount = Math.min(requestedAmount, cubesAvailable - 5); if (requestedAmount <= 0) requestedAmount = 1;
+            targets.push({ color: targetColor, req: requestedAmount, cur: 0 });
+        }
+        if (targets.length === 0 && shuf.length > 0) { targets.push({ color: shuf, req: Math.max(1, (fieldColorCounts[shuf] || 6) - 5), cur: 0 }); }
+        renderTargets();
+    }
+    function renderTargets() {
+        tCont.innerHTML = '';
+        targets.forEach(t => {
+            const remaining = Math.max(0, t.req - t.cur);
+            const d = document.createElement('div'); d.className = 'target-item' + (remaining === 0 ? ' target-completed' : '');
+            const b = document.createElement('div'); b.className = 'target-badge'; b.style.backgroundColor = t.color;
+            const s = document.createElement('span'); s.textContent = remaining; d.appendChild(b); d.appendChild(s); tCont.appendChild(d);
+        });
+    }
+
+    function drawGrid() {
+        for (let r = 0; r < ROWS; r++) {
+            for (let c = 0; c < COLS; c++) {
+                const el = document.getElementById('c-' + r + '-' + c); if(!el) continue;
+                if (gridData[r][c] === EMPTY) { el.style.backgroundColor = 'transparent'; el.style.pointerEvents = 'none'; } 
+                else { el.style.backgroundColor = gridData[r][c]; el.style.pointerEvents = isGameOver ? 'none' : 'auto'; }
+            }
+        }
+    }
+
+    function clearAllHighlights() { currentHoveredCells.forEach(([r, c]) => { const el = document.getElementById('c-' + r + '-' + c); if (el) el.classList.remove('highlight'); }); currentHoveredCells = []; }
+    function handleHover(row, col, startHighlight) {
+        if (isGameOver || gridData[row][col] === EMPTY || isSwapActive) return;
+        if (!startHighlight) { clearAllHighlights(); return; }
+        clearAllHighlights();
+        
+        let affected = [];
+        if (isBombActive) {
+            for (let r = row - 1; r <= row + 1; r++) { for (let c = col - 1; c <= col + 1; c++) { if (r >= 0 && r < ROWS && c >= 0 && c < COLS && gridData[r][c] !== EMPTY) affected.push([r, c]); } }
+        } else {
+            const color = gridData[row][col]; const conn = getConnected(row, col, color); if (conn.length > 1) affected = conn;
+        }
+        currentHoveredCells = affected; affected.forEach(([r, c]) => { const el = document.getElementById('c-' + r + '-' + c); if (el) el.classList.add('highlight'); });
+    }
+
+    // РАСПОЗНАВАНИЕ ТАЧА ПАЛЬЦЕМ НА МОБИЛЬНЫХ ЭКРАНАХ
+    function handleMobileTouch(e) {
+        if (isGameOver || e.touches.length === 0) return;
+        e.preventDefault(); // Блокирует прокрутку страницы во время игры
+        const touch = e.touches[0]; const target = document.elementFromPoint(touch.clientX, touch.clientY);
+        if (target && target.classList.contains('cell') && target !== lastTouchElement) {
+            lastTouchElement = target; const parts = target.id.split('-');
+            const r = parseInt(parts[1]), c = parseInt(parts[2]); handleHover(r, c, true);
+        }
+    }
+    function handleMobileTouchEnd(e) {
+        if (isGameOver || !lastTouchElement) return; e.preventDefault();
+        const parts = lastTouchElement.id.split('-'); const r = parseInt(parts[1]), c = parseInt(parts[2]);
+        const fakeEvent = { clientX: e.changedTouches[0].clientX, clientY: e.changedTouches[0].clientY };
+        handleClick(r, c, fakeEvent); lastTouchElement = null; clearAllHighlights();
+    }
+    function updateBombBtn() { bBtn.textContent = isBombActive ? "Отмена" : 'Бомба 💣 (' + bombsLeft + ')'; bBtn.disabled = bombsLeft <= 0; }
+    function updateHammerBtn() { hBtn.textContent = isHammerActive ? "Отмена" : 'Молот 🔨 (' + hammersLeft + ')'; hBtn.disabled = hammersLeft <= 0; }
+    function updateSwapBtn() { swBtn.textContent = isSwapActive ? "Отмена" : 'Замена 🔄 (' + swapsLeft + ')'; swBtn.disabled = swapsLeft <= 0; }
+
+    bBtn.addEventListener('click', () => { if (isGameOver || bombsLeft <= 0) return; resetModesExcept('bomb'); isBombActive = !isBombActive; bBtn.classList.toggle('active', isBombActive); gEl.classList.toggle('bomb-mode', isBombActive); updateAllBoosterBtns(); });
+    hBtn.addEventListener('click', () => { if (isGameOver || hammersLeft <= 0) return; resetModesExcept('hammer'); isHammerActive = !isHammerActive; hBtn.classList.toggle('active', isHammerActive); gEl.classList.toggle('hammer-mode', isHammerActive); updateAllBoosterBtns(); });
+    swBtn.addEventListener('click', () => { if (isGameOver || swapsLeft <= 0) return; resetModesExcept('swap'); isSwapActive = !isSwapActive; swBtn.classList.toggle('active', isSwapActive); gEl.classList.toggle('swap-mode', isSwapActive); updateAllBoosterBtns(); });
+
+    function resetModesExcept(current) {
+        clearAllHighlights(); if (firstSelectedSwapCell) { document.getElementById('c-' + firstSelectedSwapCell.r + '-' + firstSelectedSwapCell.c)?.classList.remove('selected-swap'); firstSelectedSwapCell = null; }
+        if (current !== 'bomb') { isBombActive = false; bBtn.classList.remove('active'); gEl.classList.remove('bomb-mode'); }
+        if (current !== 'hammer') { isHammerActive = false; hBtn.classList.remove('active'); gEl.classList.remove('hammer-mode'); }
+        if (current !== 'swap') { isSwapActive = false; swBtn.classList.remove('active'); gEl.classList.remove('swap-mode'); }
+        closeBoosterInfo();
+    }
+    function updateAllBoosterBtns() { updateBombBtn(); updateHammerBtn(); updateSwapBtn(); }
+
+    function showBoosterInfo(type) {
+        const modal = document.getElementById('booster-info-modal'); const textEl = document.getElementById('booster-info-text');
+        let text = "";
+        if (type === 'bomb') text = "💣 <b>Бомба</b>: Взрывает область 3х3 клетки вокруг выбранного кубика. Разрушает одиночные блоки без потери ходов.";
+        else if (type === 'hammer') text = "🔨 <b>Молоток</b>: Мгновенно разбивает один конкретный кубик любого цвета. Позволяет зачистить мешающий блок.";
+        else if (type === 'swap') text = "🔄 <b>Заменитель</b>: Позволяет поменять местами два любых кубика на поле. Нажмите сначала на первый, затем на второй блок.";
+        textEl.innerHTML = text; modal.style.display = 'block';
+    }
+    function closeBoosterInfo() { document.getElementById('booster-info-modal').style.display = 'none'; }
+    function createFloatingText(event, txt = '+1 💣') {
+        const container = document.getElementById('floating-text-container'); if (!container || !event) return;
+        const rect = gEl.getBoundingClientRect(); const x = event.clientX - rect.left; const y = event.clientY - rect.top;
+        const floatingEl = document.createElement('div'); floatingEl.className = 'floating-bomb-text'; floatingEl.textContent = txt;
+        floatingEl.style.left = `${x}px`; floatingEl.style.top = `${y}px`; container.appendChild(floatingEl);
+        setTimeout(() => { floatingEl.remove(); }, 1200);
+    }
+
+    function triggerBoosterFlash(element, className) {
+        if (!element) return; element.classList.remove(className); void element.offsetWidth; element.classList.add(className);
+        setTimeout(() => { element.classList.remove(className); }, 1000);
+    }
+
+    function executeHammer(cR, cC) {
+        const col = gridData[cR][cC]; gridData[cR][cC] = EMPTY; hammersLeft--;
+        score += 50; totalDest += 1; if (currentMode === 'targets') { targets.forEach(t => { if (t.color === col) t.cur++; }); renderTargets(); }
+        return true;
+    }
+
+    function executeSwap(r, c) {
+        if (!firstSelectedSwapCell) {
+            firstSelectedSwapCell = { r, c }; document.getElementById('c-' + r + '-' + c)?.classList.add('selected-swap'); return false;
+        }
+        const r1 = firstSelectedSwapCell.r, c1 = firstSelectedSwapCell.c;
+        document.getElementById('c-' + r1 + '-' + c1)?.classList.remove('selected-swap');
+        if (r1 === r && c1 === c) { firstSelectedSwapCell = null; return false; }
+        
+        const temp = gridData[r1][c1]; gridData[r1][c1] = gridData[r][c]; gridData[r][c] = temp;
+        swapsLeft--; firstSelectedSwapCell = null; return true;
+    }
+    function handleClick(r, c, event) {
+        if (isGameOver || gridData[r][c] === EMPTY) return;
+        if (isBombActive) { clearAllHighlights(); if (executeBomb(r, c)) { isBombActive = false; bBtn.classList.remove('active'); gEl.classList.remove('bomb-mode'); finishTurn(); } return; }
+        if (isHammerActive) { clearAllHighlights(); if (executeHammer(r, c)) { isHammerActive = false; hBtn.classList.remove('active'); gEl.classList.remove('hammer-mode'); finishTurn(); } return; }
+        if (isSwapActive) { if (executeSwap(r, c)) { isSwapActive = false; swBtn.classList.remove('active'); gEl.classList.remove('swap-mode'); finishTurn(); } return; }
+        
+        const col = gridData[r][c]; const conn = getConnected(r, c, col);
+        if (conn.length > 1) {
+            clearAllHighlights(); conn.forEach(([ri, ci]) => gridData[ri][ci] = EMPTY);
+            let basePoints = conn.length * 10; let multiplier = 1;
+            if (conn.length >= 35) multiplier = 5; else if (conn.length >= 20) multiplier = 3; else if (conn.length >= 10) multiplier = 2; else if (conn.length >= 5) multiplier = 1.5;
+            score += Math.floor(basePoints * multiplier); totalDest += conn.length;
+            if (currentMode !== 'free' && currentMode !== 'chain_inf') movesLeft--;
+            if (currentMode === 'targets') { targets.forEach(t => { if (t.color === col) t.cur += conn.length; }); }
+            
+            if (currentMode !== 'chain_inf') {
+                if (conn.length >= 15) {
+                    if (currentMode === 'free' || currentMode === 'targets') { bombsLeft++; createFloatingText(event, '+1 💣'); triggerBoosterFlash(bBtn, 'flash-bomb'); }
+                } else if (conn.length >= 12) {
+                    hammersLeft++; createFloatingText(event, '+1 🔨'); triggerBoosterFlash(hBtn, 'flash-hammer');
+                } else if (conn.length >= 10) {
+                    swapsLeft++; createFloatingText(event, '+1 🔄'); triggerBoosterFlash(swBtn, 'flash-swap');
+                }
+            }
+
+            if ((currentMode === 'chain' || currentMode === 'chain_inf') && conn.length > maxChainRecord) { maxChainRecord = conn.length; updateChainUI(); }
+            finishTurn();
+        }
+    }
+    function applyHorizontalCollapse() {
+        let emptyColumns = [];
+        for (let c = 0; c < COLS; c++) { let isEmpty = true; for (let r = 0; r < ROWS; r++) { if (gridData[r][c] !== EMPTY) { isEmpty = false; break; } } if (isEmpty) emptyColumns.push(c); }
+        if (emptyColumns.length > 0 && emptyColumns.length < COLS) {
+            let newGridData = Array.from({ length: ROWS }, () => Array(COLS).fill(EMPTY)); let shiftLeftCount = emptyColumns.filter(c => c < Math.floor(COLS / 2)).length; let targetCol = shiftLeftCount;
+            for (let c = 0; c < COLS; c++) { if (!emptyColumns.includes(c)) { for (let r = 0; r < ROWS; r++) { newGridData[r][targetCol] = gridData[r][c]; } targetCol++; } }
+            gridData = newGridData;
+        }
+        setTimeout(() => { if (!hasMoves() && bombsLeft <= 0 && hammersLeft <= 0 && swapsLeft <= 0 && !isGameOver) { finishTurn(); } }, 60);
+    }
+
+    function updateLiveCubesCounter() {
+        const counts = {}; currentColors.forEach(color => counts[color] = 0);
+        for (let r = 0; r < ROWS; r++) { for (let c = 0; c < COLS; c++) { const color = gridData[r][c]; if (color !== EMPTY && counts[color] !== undefined) counts[color]++; } }
+        liveContainer.innerHTML = '';
+        currentColors.forEach(color => {
+            const count = counts[color]; if (count > 0) {
+                const badge = document.createElement('div'); badge.className = 'live-count-badge'; const dot = document.createElement('div'); dot.className = 'live-count-dot'; dot.style.backgroundColor = color;
+                const txt = document.createElement('span'); txt.textContent = count; badge.appendChild(dot); badge.appendChild(txt); liveContainer.appendChild(badge);
+            }
+        });
+    }
+
+    function saveGameSession() {
+        if (isGameOver) return; localStorage.setItem('cc_save_active', 'true'); localStorage.setItem('cc_save_mode', currentMode); localStorage.setItem('cc_save_diff', difficulty); localStorage.setItem('cc_save_rows', ROWS); localStorage.setItem('cc_save_cols', COLS); localStorage.setItem('cc_save_score', score); localStorage.setItem('cc_save_total_dest', totalDest); localStorage.setItem('cc_save_moves', movesLeft); localStorage.setItem('cc_save_bombs', bombsLeft); localStorage.setItem('cc_save_hammers', hammersLeft); localStorage.setItem('cc_save_swaps', swapsLeft); localStorage.setItem('cc_save_max_chain', maxChainRecord); localStorage.setItem('cc_save_grid', JSON.stringify(gridData)); localStorage.setItem('cc_save_targets', JSON.stringify(targets));
+    }
+    function clearGameSession() { localStorage.setItem('cc_save_active', 'false'); }
+    function resumeSavedGame() {
+        if (localStorage.getItem('cc_save_active') !== 'true') return;
+        currentMode = localStorage.getItem('cc_save_mode'); difficulty = localStorage.getItem('cc_save_diff'); ROWS = parseInt(localStorage.getItem('cc_save_rows')); COLS = parseInt(localStorage.getItem('cc_save_cols')); score = parseInt(localStorage.getItem('cc_save_score')); totalDest = parseInt(localStorage.getItem('cc_save_total_dest')); movesLeft = parseFloat(localStorage.getItem('cc_save_moves')); if (localStorage.getItem('cc_save_moves') === 'Infinity') movesLeft = Infinity; bombsLeft = parseInt(localStorage.getItem('cc_save_bombs')); hammersLeft = parseInt(localStorage.getItem('cc_save_hammers') || 1); swapsLeft = parseInt(localStorage.getItem('cc_save_swaps') || 1); maxChainRecord = parseInt(localStorage.getItem('cc_save_max_chain')); gridData = JSON.parse(localStorage.getItem('cc_save_grid')); targets = JSON.parse(localStorage.getItem('cc_save_targets'));
+        mScr.style.display = 'none'; goScr.style.display = 'none'; isGameOver = false; isBombActive = false; isHammerActive = false; isSwapActive = false; firstSelectedSwapCell = null; document.getElementById('size-slider').value = ROWS; document.getElementById('size-value').textContent = ROWS + ' х ' + ROWS; document.querySelectorAll('.diff-btn').forEach(b => b.classList.remove('active')); const actB = document.getElementById('diff-' + difficulty); if (actB) actB.classList.add('active');
+        
+        gEl.innerHTML = ''; const maxGridPixels = Math.min(window.innerWidth - 24, window.innerHeight - 170); const cellSize = Math.floor(maxGridPixels / Math.max(ROWS, COLS)); gEl.style.gridTemplateColumns = 'repeat(' + COLS + ', ' + cellSize + 'px)'; gEl.style.gridTemplateRows = 'repeat(' + ROWS + ', ' + cellSize + 'px)';
+        bBar.style.display = (currentMode === 'chain_inf') ? 'none' : 'flex'; bBtn.style.display = (currentMode === 'chain_inf') ? 'none' : 'block'; hBtn.style.display = (currentMode === 'chain_inf') ? 'none' : 'block'; swBtn.style.display = (currentMode === 'chain_inf') ? 'none' : 'block'; liveContainer.style.display = 'flex'; sEl.textContent = (currentMode === 'chain' || currentMode === 'chain_inf') ? maxChainRecord : score;
+        document.querySelectorAll('.info-btn').forEach(btn => btn.style.display = (currentMode === 'chain_inf') ? 'none' : 'flex');
+        
+        document.getElementById('hs-diff-title').textContent = DIFF_NAMES[difficulty]; document.getElementById('hs-size-title').textContent = ROWS + 'x' + ROWS;
+
+        if (currentMode === 'targets') { mEl.style.display = 'block'; rStatLabel.style.display = 'block'; rStatLabel.textContent = "Ходы"; mEl.textContent = movesLeft; cStatLabel.textContent = "Цели"; tCont.style.display = 'flex'; renderTargets(); } 
+        else if (currentMode === 'free') { mEl.style.display = 'none'; rStatLabel.style.display = 'none'; cStatLabel.textContent = "Режим"; tCont.style.display = 'flex'; tCont.innerHTML = '<div class="target-item">Свободный</div>'; } 
+        else if (currentMode === 'chain' || currentMode === 'chain_inf') { mEl.style.display = (currentMode === 'chain') ? 'block' : 'none'; rStatLabel.style.display = (currentMode === 'chain') ? 'block' : 'none'; rStatLabel.textContent = "Ходы"; mEl.textContent = movesLeft; cStatLabel.textContent = "Рекорд цепи"; tCont.style.display = 'flex'; updateChainUI(); }
+        updateBombBtn(); updateHammerBtn(); updateSwapBtn();
+        for (let r = 0; r < ROWS; r++) { for (let c = 0; c < COLS; c++) { const cell = document.createElement('div'); cell.className = 'cell'; cell.id = 'c-' + r + '-' + c; cell.style.width = cellSize + 'px'; cell.style.height = cellSize + 'px'; cell.addEventListener('mouseenter', () => handleHover(r, c, true)); cell.addEventListener('mouseleave', () => handleHover(r, c, false)); cell.addEventListener('click', (e) => handleClick(r, c, e)); gEl.appendChild(cell); } }
+        updateLiveCubesCounter(); drawGrid(); loadHighscores();
+    }
+    function finishTurn() {
+        applyGravity(); applyHorizontalCollapse(); updateLiveCubesCounter(); if (currentMode === 'chain' || currentMode === 'chain_inf') sEl.textContent = maxChainRecord; else sEl.textContent = score; if (currentMode !== 'free' && currentMode !== 'chain_inf') mEl.textContent = movesLeft; if (currentMode === 'targets') renderTargets(); drawGrid(); updateAllBoosterBtns(); saveGameSession();
+        setTimeout(() => {
+            if (isGameOver) return; let win = false, end = false, title = "Игра окончена 😢", color = "#FF5733", detailsHtml = ""; const noMoves = !hasMoves();
+            if (currentMode === 'targets') { win = targets.every(t => t.cur >= t.req); end = win || movesLeft <= 0 || (noMoves && bombsLeft <= 0 && hammersLeft <= 0 && swapsLeft <= 0); title = win ? "Победа! 🎉" : "Ходы закончились! 😢"; color = win ? "#33FF57" : "#FF5733"; detailsHtml = 'Счет: ' + score + ' | Взорвано: ' + totalDest; } 
+            else if (currentMode === 'free') { end = noMoves && bombsLeft <= 0 && hammersLeft <= 0 && swapsLeft <= 0; title = "Больше нет ходов! 🎯"; color = "#FFA500"; detailsHtml = 'Итоговый счет: ' + score + '<br>Всего взорвано кубиков: ' + totalDest; } 
+            else if (currentMode === 'chain') { end = movesLeft <= 0 || (noMoves && bombsLeft <= 0 && hammersLeft <= 0 && swapsLeft <= 0); title = "Время вышло! 🔗"; color = "#3357FF"; detailsHtml = 'Макс. цепочка: <b>' + maxChainRecord + '</b> кубиков<br>Набрано очков: ' + score; } 
+            else if (currentMode === 'chain_inf') { end = noMoves; title = "Больше нет ходов! 🔗"; color = "#9b59b6"; detailsHtml = 'Макс. цепочка сессии: <b>' + maxChainRecord + '</b> кубиков<br>Всего взорвано: ' + totalDest; }
+            if (end) {
+                isGameOver = true; clearGameSession(); for (let r = 0; r < ROWS; r++) { for (let c = 0; c < COLS; c++) { const el = document.getElementById('c-' + r + '-' + c); if (el) el.style.pointerEvents = 'none'; } }
+                clearAllHighlights(); drawGrid(); const reachedNewRecord = checkAndSaveHighscore(); if (reachedNewRecord) { document.getElementById('new-record-msg').style.display = 'block'; initFireworks(); }
+                document.getElementById('go-title').textContent = title; document.getElementById('go-title').style.color = color; document.getElementById('go-details').innerHTML = detailsHtml; goScr.style.display = 'flex'; checkActiveSaveSession();
+            }
+        }, 50);
+    }
+
+    function updateSizeSetting(value) { ROWS = parseInt(value); COLS = parseInt(value); document.getElementById('size-value').textContent = value + ' х ' + value; document.getElementById('hs-size-title').textContent = value + 'x' + value; loadHighscores(); }
+    function setDifficulty(level) { difficulty = level; document.querySelectorAll('.diff-btn').forEach(btn => btn.classList.remove('active')); const activeBtn = document.getElementById('diff-' + level); if (activeBtn) activeBtn.classList.add('active'); document.getElementById('hs-diff-title').textContent = DIFF_NAMES[level]; if (level === 'easy') currentColors = ALL_COLORS.slice(0, 4); else if (level === 'medium') currentColors = ALL_COLORS.slice(0, 6); else if (level === 'hard') currentColors = ALL_COLORS.slice(0, 8); loadHighscores(); }
+    function loadHighscores() { document.getElementById('hs-targets').textContent = localStorage.getItem('cc_hs_targets_' + difficulty + '_' + ROWS) || 0; document.getElementById('hs-free').textContent = localStorage.getItem('cc_hs_free_' + difficulty + '_' + ROWS) || 0; document.getElementById('hs-chain').textContent = localStorage.getItem('cc_hs_chain_' + difficulty + '_' + ROWS) || 0; document.getElementById('hs-chain_inf').textContent = localStorage.getItem('cc_hs_chain_inf_' + difficulty + '_' + ROWS) || 0; }
+    function resetHighscores() { if(confirm('Сбросить рекорды для сложности "' + DIFF_NAMES[difficulty] + '" на поле ' + ROWS + 'x' + ROWS + '?')) { localStorage.removeItem('cc_hs_targets_' + difficulty + '_' + ROWS); localStorage.removeItem('cc_hs_free_' + difficulty + '_' + ROWS); localStorage.removeItem('cc_hs_chain_' + difficulty + '_' + ROWS); localStorage.removeItem('cc_hs_chain_inf_' + difficulty + '_' + ROWS); loadHighscores(); } }
+    function checkAndSaveHighscore() { let isNewRecord = false; const key = 'cc_hs_' + currentMode + '_' + difficulty + '_' + ROWS; let currentBest = parseInt(localStorage.getItem(key) || 0); if (currentMode === 'chain' || currentMode === 'chain_inf') { if (maxChainRecord > currentBest) { localStorage.setItem(key, maxChainRecord); isNewRecord = true; } } else { if (score > currentBest) { localStorage.setItem(key, score); isNewRecord = true; } } return isNewRecord; }
+    function exitToMenu() { if (isGameOver || confirm('Прервать игру? Ваша сессия сохранится в меню.')) { isGameOver = true; if (typeof fwAnimationId !== 'undefined') cancelAnimationFrame(fwAnimationId); goScr.style.display = 'none'; liveContainer.style.display = 'none'; loadHighscores(); mScr.style.display = 'flex'; checkActiveSaveSession(); } }
+    function getConnected(sR, sC, color) { const q = [[sR, sC]], viz = Array.from({ length: ROWS }, () => Array(COLS).fill(false)), res = []; viz[sR][sC] = true; while (q.length > 0) { const [r, c] = q.shift(); res.push([r, c]); for (const [nr, nc] of [[r-1,c], [r+1,c], [r,c-1], [r,c+1]]) { if (nr >= 0 && nr < ROWS && nc >= 0 && nc < COLS && !viz[nr][nc] && gridData[nr][nc] === color) { viz[nr][nc] = true; q.push([nr, nc]); } } } return res; }
+    function applyGravity() { for (let c = 0; c < COLS; c++) { let emptyIdx = ROWS - 1; for (let r = ROWS - 1; r >= 0; r--) { if (gridData[r][c] !== EMPTY) { if (r !== emptyIdx) { gridData[emptyIdx][c] = gridData[r][c]; gridData[r][c] = EMPTY; } emptyIdx--; } } } }
+    function executeBomb(cR, cC) { let count = 0; for (let r = cR - 1; r <= cR + 1; r++) { for (let c = cC - 1; c <= cC + 1; c++) { if (r >= 0 && r < ROWS && c >= 0 && c < COLS && gridData[r][c] !== EMPTY) { const col = gridData[r][c]; gridData[r][c] = EMPTY; count++; if (currentMode === 'targets') { targets.forEach(t => { if (t.color === col) t.cur++; }); } } } } if (count > 0) { score += count * 20; totalDest += count; bombsLeft--; if (currentMode === 'targets') renderTargets(); } return count > 0; }
+    function hasMoves() { for (let r = 0; r < ROWS; r++) { for (let c = 0; c < COLS; c++) { if (gridData[r][c] !== EMPTY) { if (c + 1 < COLS && gridData[r][c] === gridData[r][c+1]) return true; if (r + 1 < ROWS && gridData[r][c] === gridData[r+1][c]) return true; } } } return false; }
+    let fwCanvas, fwCtx, fwAnimationId, particles = [];
+    function initFireworks() { fwCanvas = document.getElementById('fw-canvas'); fwCtx = fwCanvas.getContext('2d'); fwCanvas.width = fwCanvas.parentElement.clientWidth; fwCanvas.height = fwCanvas.parentElement.clientHeight; particles = []; loopFireworks(); }
+    function spawnFirework() { const x = Math.random() * fwCanvas.width, y = Math.random() * (fwCanvas.height * 0.6) + fwCanvas.height * 0.1, pCount = 30; const col = currentColors[Math.floor(Math.random() * currentColors.length)]; for(let i=0; i<pCount; i++) { const angle = Math.random() * Math.PI * 2, speed = Math.random() * 3 + 1; particles.push({ x: x, y: y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed, alpha: 1, color: col }); } }
+    function loopFireworks() { if (!isGameOver) return; fwCtx.clearRect(0, 0, fwCanvas.width, fwCanvas.height); if (Math.random() < 0.06) spawnFirework(); for (let i = particles.length - 1; i >= 0; i--) { const p = particles[i]; p.x += p.vx; p.y += p.vy; p.vy += 0.05; p.alpha -= 0.02; if (p.alpha <= 0) { particles.splice(i, 1); continue; } fwCtx.globalAlpha = p.alpha; fwCtx.fillStyle = p.color; fwCtx.beginPath(); fwCtx.arc(p.x, p.y, 2, 0, Math.PI * 2); fwCtx.fill(); } fwCtx.globalAlpha = 1; fwAnimationId = requestAnimationFrame(loopFireworks); }
+    
+    window.onload = function() { setDifficulty('medium'); updateSizeSetting(30); checkActiveSaveSession(); };
+</script>
+</body>
+</html>
