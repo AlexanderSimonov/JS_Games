@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>8 Ферзей — Шахматная Головоломка</title>
+    <style>
+        :root {
+            /* Базовый размер для десктопов. На мобильных он автоматически уменьшится */
+            --cell-size: min(60px, 10vw); 
+            --dark-cell: #b58863;
+            --light-cell: #f0d9b5;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background-color: #2f3542;
+            color: #ffffff;
+            margin: 0;
+            padding: 10px;
+            /* Отключаем стандартные жесты браузера (например, pull-to-refresh) */
+            touch-action: none; 
+            -webkit-user-select: none;
+            user-select: none;
+        }
+
+        h1 { 
+            margin: 5px 0 10px 0; 
+            font-size: min(24px, 6vw);
+            text-align: center;
+        }
+
+        .info-panel {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 15px;
+            font-size: min(16px, 4vw);
+            margin-bottom: 10px;
+            background: #57606f;
+            padding: 8px 15px;
+            border-radius: 8px;
+            width: 90%;
+            max-width: 500px;
+            box-sizing: border-box;
+        }
+
+        .attack-toggle {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            cursor: pointer;
+            border-left: 2px solid #747d8c;
+            padding-left: 15px;
+        }
+
+        .attack-toggle input {
+            cursor: pointer;
+            width: 16px;
+            height: 16px;
+        }
+
+        .controls { 
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 15px;
+            margin-bottom: 15px; 
+            width: 90%;
+            max-width: 500px;
+        }
+
+        .queen-counter {
+            font-size: min(16px, 3.8vw);
+            font-weight: bold;
+            background: #ffa502;
+            color: #1e222b;
+            padding: 6px 12px;
+            border-radius: 5px;
+            white-space: nowrap;
+        }
+
+        button {
+            padding: 8px 16px;
+            font-size: min(16px, 3.8vw);
+            background-color: #2ed573;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background 0.2s;
+            white-space: nowrap;
+        }
+
+        button:hover { background-color: #26af5f; }
+
+        .game-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px;
+            width: 100%;
+        }
+
+        .queens-bank {
+            display: flex;
+            gap: 5px;
+            min-height: calc(var(--cell-size) + 10px);
+            padding: 5px;
+            background: #747d8c;
+            border-radius: 8px;
+            width: calc(var(--cell-size) * 8 + 15px);
+            max-width: 100%;
+            justify-content: center;
+            align-items: center;
+            box-sizing: border-box;
+        }
+
+        .board-wrapper {
+            position: relative;
+            padding: 24px; /* Размер подгоняется под размер шрифта координат */
+            background-color: #1e222b;
+            border-radius: 8px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+            box-sizing: content-box;
+        }
+
+        .board {
+            display: grid;
+            grid-template-columns: repeat(8, var(--cell-size));
+            grid-template-rows: repeat(8, var(--cell-size));
+            border: 2px solid #333;
+        }
+
+        .cell {
+            width: var(--cell-size);
+            height: var(--cell-size);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            box-sizing: border-box;
+            position: relative;
+        }
+
+        .cell.light { background-color: var(--light-cell); }
+        .cell.dark { background-color: var(--dark-cell); }
+
+        .coord-label {
+            position: absolute;
+            font-size: min(12px, 3vw);
+            font-weight: bold;
+            color: #a4b0be;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .coord-row {
+            height: var(--cell-size);
+            width: 24px;
+        }
+        .coord-col {
+            width: var(--cell-size);
+            height: 24px;
+        }
+
+        .queen {
+            width: var(--cell-size);
+            height: var(--cell-size);
+            cursor: grab;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            box-sizing: border-box;
+            z-index: 2;
+            /* Предотвращает появление контекстного меню при долгом тапе */
+            -webkit-touch-callout: none; 
+        }
+
+        .queen:active { cursor: grabbing; }
+        
+        .queen svg { 
+            width: 85%; 
+            height: 85%; 
+            pointer-events: none; 
+        }
+
+        .cell.invalid {
+            box-shadow: inset 0 0 10px #ff4757;
+            background-color: #ff6b81 !important;
+        }
+
+        .cell.attacked::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-color: rgba(46, 213, 115, 0.45);
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        .cell.attacked-conflict::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-color: rgba(255, 159, 26, 0.7);
+            pointer-events: none;
+            z-index: 1;
+        }
+        
+        .win-message {
+            font-size: min(20px, 5vw);
+            color: #2ed573;
+            font-weight: bold;
+            margin-top: 10px;
+            min-height: 25px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Задача о 8 ферзях</h1>
+    
+    <div class="info-panel">
+        <div>⏱️ <span id="timer">00:00</span></div>
+        <div>🏆 <span id="best-time">--:--</span></div>
+        <label class="attack-toggle">
+            <input type="checkbox" id="attack-checkbox" checked>
+            <span>Атака</span>
+        </label>
+    </div>
+
+    <div class="controls">
+        <button id="new-game-btn">Новая игра</button>
+        <div class="queen-counter">Осталось: <span id="queens-left">8</span></div>
+    </div>
+
+    <div class="game-container">
+        <div class="queens-bank" id="queens-bank"></div>
+        <div class="board-wrapper" id="board-wrapper">
+            <div class="board" id="board"></div>
+        </div>
+    </div>
+
+    <div class="win-message" id="win-message"></div>
+    <script>
+        const boardElement = document.getElementById('board');
+        const boardWrapper = document.getElementById('board-wrapper');
+        const bankElement = document.getElementById('queens-bank');
+        const timerElement = document.getElementById('timer');
+        const bestTimeElement = document.getElementById('best-time');
+        const newGameBtn = document.getElementById('new-game-btn');
+        const winMessage = document.getElementById('win-message');
+        const attackCheckbox = document.getElementById('attack-checkbox');
+        const queensLeftElement = document.getElementById('queens-left');
+
+        const queenSvg = `<svg viewBox="0 0 45 45" xmlns="http://w3.org"><g fill="#000" fill-rule="evenodd" stroke="#000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 12a2 2 0 1 1-4 0 2 2 0 1 1 4 0zm5.5-3a2 2 0 1 1-4 0 2 2 0 1 1 4 0zm6.5-2a2 2 0 1 1-4 0 2 2 0 1 1 4 0zm6.5 2a2 2 0 1 1-4 0 2 2 0 1 1 4 0zm5.5 3a2 2 0 1 1-4 0 2 2 0 1 1 4 0z"/><path d="M12 33a2.5 2.5 0 1 1-5 0 2.5 2.5 0 1 1 5 0zm26 0a2.5 2.5 0 1 1-5 0 2.5 2.5 0 1 1 5 0z"/><path d="M9 26c0 2 1.5 3 2.5 4 1 1 4 1 4 1s3 0 4-1c1.5-1 2.5-2 2.5-4 0-1.5-3-5.5-3-5.5s-1.5 3.5-3 3.5c-1.5 0-2-2.5-2-2.5s-.5 2.5-2 2.5c-1.5 0-3-3.5-3-3.5s-3 4-3 5.5z" fill="#fff"/><path d="M22.5 26c0 2 1.5 3 2.5 4 1 1 4 1 4 1s3 0 4-1c1.5-1 2.5-2 2.5-4 0-1.5-3-5.5-3-5.5s-1.5 3.5-3 3.5c-1.5 0-2-2.5-2-2.5s-.5 2.5-2 2.5c-1.5 0-3-3.5-3-3.5s-3 4-3 5.5z" fill="#fff"/><path d="M11.5 14.5l1.5 13 3-12 3 12 3.5-16 3.5 16 3-12 3 12 1.5-13H11.5z" fill="#fff"/><path d="M11.5 30h22v3h-22zm1 3.5h20v2h-20zm-1 2.5h22v2h-22z"/><path d="M11.5 30c0-2-1-4-2.5-5.5h27c-1.5 1.5-2.5 3.5-2.5 5.5h-22z" fill="#fff"/><path d="M11.5 30h22M12 33h21m-20.5 2.5h20M11.5 36h22" stroke="#000"/></g></svg>`;
+
+        let startTime = null;
+        let timerInterval = null;
+        let gameActive = false;
+        let draggedQueen = null;
+        
+        // Переменные для мобильного трекинга пальца
+        let touchOffsetX = 0;
+        let touchOffsetY = 0;
+        let originalParent = null;
+
+        initGame();
+
+        function initGame() {
+            createBoard();
+            createCoordinates();
+            loadBestTime();
+            resetGame();
+            newGameBtn.addEventListener('click', resetGame);
+            
+            // Глобальный перерасчет координат разметки при повороте экрана смартфона
+            window.addEventListener('resize', createCoordinates);
+        }
+
+        function createBoard() {
+            boardElement.innerHTML = '';
+            for (let row = 0; row < 8; row++) {
+                for (let col = 0; col < 8; col++) {
+                    const cell = document.createElement('div');
+                    cell.classList.add('cell');
+                    cell.classList.add((row + col) % 2 === 0 ? 'light' : 'dark');
+                    cell.dataset.row = row;
+                    cell.dataset.col = col;
+
+                    // Оставляем десктопные события
+                    cell.addEventListener('dragover', dragOver);
+                    cell.addEventListener('dragenter', dragEnter);
+                    cell.addEventListener('drop', dropOnCell);
+                    boardElement.appendChild(cell);
+                }
+            }
+            bankElement.addEventListener('dragover', dragOver);
+            bankElement.addEventListener('drop', dropOnBank);
+        }
+
+        function createCoordinates() {
+            // Очищаем старые метки перед обновлением размера экрана
+            document.querySelectorAll('.coord-label').forEach(el => el.remove());
+
+            const files = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+            const ranks = ['8', '7', '6', '5', '4', '3', '2', '1'];
+            const offset = 24; // Соответствует padding в .board-wrapper
+
+            for (let i = 0; i < 8; i++) {
+                const leftRank = document.createElement('div');
+                leftRank.classList.add('coord-label', 'coord-row');
+                leftRank.textContent = ranks[i];
+                leftRank.style.left = '0px';
+                leftRank.style.top = `${offset + i * cellSize()}px`;
+                boardWrapper.appendChild(leftRank);
+
+                const rightRank = leftRank.cloneNode(true);
+                rightRank.style.left = `${offset + 8 * cellSize()}px`;
+                boardWrapper.appendChild(rightRank);
+
+                const topFile = document.createElement('div');
+                topFile.classList.add('coord-label', 'coord-col');
+                topFile.textContent = files[i];
+                topFile.style.top = '0px';
+                topFile.style.left = `${offset + i * cellSize()}px`;
+                boardWrapper.appendChild(topFile);
+
+                const bottomFile = topFile.cloneNode(true);
+                bottomFile.style.top = `${offset + 8 * cellSize()}px`;
+                boardWrapper.appendChild(bottomFile);
+            }
+        }
+
+        function cellSize() {
+            return boardElement.offsetWidth / 8;
+        }
+        function resetGame() {
+            clearInterval(timerInterval);
+            timerElement.textContent = "00:00";
+            winMessage.textContent = "";
+            startTime = null;
+            gameActive = true;
+
+            document.querySelectorAll('.cell').forEach(cell => {
+                cell.innerHTML = '';
+                cell.classList.remove('invalid', 'attacked', 'attacked-conflict');
+            });
+
+            bankElement.innerHTML = '';
+            for (let i = 0; i < 8; i++) {
+                const queen = document.createElement('div');
+                queen.classList.add('queen');
+                queen.setAttribute('draggable', 'true');
+                queen.innerHTML = queenSvg;
+                queen.id = 'queen-' + i;
+
+                // Мышиные события
+                queen.addEventListener('dragstart', dragStart);
+                queen.addEventListener('dragend', dragEnd);
+                
+                // Сенсорные мобильные события
+                queen.addEventListener('touchstart', handleTouchStart, { passive: false });
+                queen.addEventListener('touchmove', handleTouchMove, { passive: false });
+                queen.addEventListener('touchend', handleTouchEnd);
+
+                bankElement.appendChild(queen);
+            }
+            updateQueenCounter();
+        }
+
+        function updateQueenCounter() {
+            queensLeftElement.textContent = bankElement.children.length;
+        }
+
+        function startTimer() {
+            startTime = Date.now();
+            timerInterval = setInterval(() => {
+                timerElement.textContent = formatTime(Date.now() - startTime);
+            }, 1000);
+        }
+
+        function formatTime(ms) {
+            const totalSeconds = Math.floor(ms / 1000);
+            return `${Math.floor(totalSeconds / 60).toString().padStart(2, '0')}:${(totalSeconds % 60).toString().padStart(2, '0')}`;
+        }
+
+        /* --- Логика тач-событий для смартфонов --- */
+
+        function handleTouchStart(e) {
+            if (!gameActive) return;
+            e.preventDefault(); // Блокирует скролл экрана при переносе фигуры
+            
+            draggedQueen = e.target.closest('.queen');
+            originalParent = draggedQueen.parentNode;
+            
+            if (!startTime) startTimer();
+
+            const touch = e.touches[0];
+            const rect = draggedQueen.getBoundingClientRect();
+            
+            // Смещение пальца относительно центра фигуры
+            touchOffsetX = touch.clientX - rect.left - rect.width / 2;
+            touchOffsetY = touch.clientY - rect.top - rect.height / 2;
+
+            // Переводим элемент в состояние свободного полета по экрану
+            draggedQueen.style.position = 'fixed';
+            draggedQueen.style.width = rect.width + 'px';
+            draggedQueen.style.height = rect.height + 'px';
+            moveAt(touch.clientX, touch.clientY);
+            document.body.appendChild(draggedQueen);
+        }
+
+        function handleTouchMove(e) {
+            if (!draggedQueen) return;
+            e.preventDefault();
+
+            const touch = e.touches[0];
+            moveAt(touch.clientX, touch.clientY);
+
+            // Прячем фигуру на мгновение, чтобы узнать, над какой реальной клеткой находится палец
+            draggedQueen.style.visibility = 'hidden';
+            const elementUnderTouch = document.elementFromPoint(touch.clientX, touch.clientY);
+            draggedQueen.style.visibility = 'visible';
+
+            if (!elementUnderTouch) return;
+            const cell = elementUnderTouch.closest('.cell');
+            
+            if (cell && attackCheckbox.checked) {
+                previewAttackLines(parseInt(cell.dataset.row), parseInt(cell.dataset.col));
+            } else {
+                clearAttackLines();
+            }
+        }
+
+        function handleTouchEnd(e) {
+            if (!draggedQueen) return;
+
+            // Возвращаем стили в исходное состояние
+            draggedQueen.style.position = '';
+            draggedQueen.style.width = '';
+            draggedQueen.style.height = '';
+
+            const touch = e.changedTouches[0];
+            draggedQueen.style.visibility = 'hidden';
+            const elementUnderTouch = document.elementFromPoint(touch.clientX, touch.clientY);
+            draggedQueen.style.visibility = 'visible';
+
+            let dropped = false;
+
+            if (elementUnderTouch) {
+                const cell = elementUnderTouch.closest('.cell');
+                const bank = elementUnderTouch.closest('.queens-bank');
+
+                if (cell && cell.children.length === 0) {
+                    cell.appendChild(draggedQueen);
+                    dropped = true;
+                } else if (bank) {
+                    bank.appendChild(draggedQueen);
+                    dropped = true;
+                }
+            }
+
+            // Если бросили мимо или на занятую клетку — возвращаем откуда взяли
+            if (!dropped) {
+                originalParent.appendChild(draggedQueen);
+            }
+
+            draggedQueen = null;
+            clearAttackLines();
+            checkBoardState();
+            updateQueenCounter();
+        }
+
+        function moveAt(clientX, clientY) {
+            draggedQueen.style.left = clientX - draggedQueen.offsetWidth / 2 - touchOffsetX + 'px';
+            draggedQueen.style.top = clientY - draggedQueen.offsetHeight / 2 - touchOffsetY + 'px';
+        }
+
+        /* --- Логика стандартных мышиных событий (Десктоп) --- */
+        function dragStart(e) {
+            if (!gameActive) return;
+            draggedQueen = e.target.closest('.queen');
+            if (!startTime) startTimer();
+        }
+        function dragEnd() {
+            draggedQueen = null;
+            clearAttackLines();
+            checkBoardState();
+            updateQueenCounter();
+        }
+        function dragOver(e) { e.preventDefault(); }
+        function dragEnter(e) {
+            e.preventDefault();
+            if (!attackCheckbox.checked) return;
+            const cell = e.target.closest('.cell');
+            if (cell) previewAttackLines(parseInt(cell.dataset.row), parseInt(cell.dataset.col));
+        }
+        function dropOnCell(e) {
+            e.preventDefault();
+            const cell = e.target.closest('.cell');
+            if (cell && cell.children.length === 0 && draggedQueen) cell.appendChild(draggedQueen);
+        }
+        function dropOnBank(e) {
+            e.preventDefault();
+            if (draggedQueen) bankElement.appendChild(draggedQueen);
+        }
+        function previewAttackLines(row, col) {
+            clearAttackLines();
+            if (!attackCheckbox.checked) return;
+
+            document.querySelectorAll('.cell').forEach(cell => {
+                const r = parseInt(cell.dataset.row);
+                const c = parseInt(cell.dataset.col);
+
+                if (r === row || c === col || Math.abs(r - row) === Math.abs(c - col)) {
+                    const hasOtherQueen = cell.children.length > 0 && cell.firstElementChild !== draggedQueen;
+                    if (hasOtherQueen) {
+                        cell.classList.add('attacked-conflict');
+                    } else {
+                        cell.classList.add('attacked');
+                    }
+                }
+            });
+        }
+
+        function clearAttackLines() {
+            document.querySelectorAll('.cell').forEach(c => {
+                c.classList.remove('attacked', 'attacked-conflict');
+            });
+        }
+
+        function checkBoardState() {
+            const cells = document.querySelectorAll('.cell');
+            cells.forEach(c => c.classList.remove('invalid'));
+
+            const queensPositions = [];
+            cells.forEach(cell => {
+                if (cell.children.length > 0) {
+                    queensPositions.push({
+                        row: parseInt(cell.dataset.row),
+                        col: parseInt(cell.dataset.col),
+                        cell: cell
+                    });
+                }
+            });
+
+            let hasConflicts = false;
+
+            for (let i = 0; i < queensPositions.length; i++) {
+                let q1 = queensPositions[i];
+                let q1UnderAttack = false;
+
+                for (let j = 0; j < queensPositions.length; j++) {
+                    if (i === j) continue;
+                    let q2 = queensPositions[j];
+
+                    if (
+                        q1.row === q2.row || 
+                        q1.col === q2.col || 
+                        Math.abs(q1.row - q2.row) === Math.abs(q1.col - q2.col)
+                    ) {
+                        q1UnderAttack = true;
+                        hasConflicts = true;
+                    }
+                }
+
+                if (q1UnderAttack) {
+                    q1.cell.classList.add('invalid');
+                }
+            }
+
+            if (queensPositions.length === 8 && !hasConflicts) {
+                handleWin();
+            }
+        }
+
+        function handleWin() {
+            gameActive = false;
+            clearInterval(timerInterval);
+            clearAttackLines();
+            
+            const finalTimeMs = Date.now() - startTime;
+            winMessage.textContent = `Поздравляем! Вы решили головоломку за ${formatTime(finalTimeMs)}!`;
+
+            const bestTime = localStorage.getItem('queens_best_time');
+            if (!bestTime || finalTimeMs < parseInt(bestTime)) {
+                localStorage.setItem('queens_best_time', finalTimeMs);
+                bestTimeElement.textContent = formatTime(finalTimeMs);
+                winMessage.textContent += " Это новый рекорд!";
+            }
+        }
+
+        function loadBestTime() {
+            const bestTime = localStorage.getItem('queens_best_time');
+            if (bestTime) {
+                bestTimeElement.textContent = formatTime(parseInt(bestTime));
+            } else {
+                bestTimeElement.textContent = "--:--";
+            }
+        }
+    </script>
+</body>
+</html>
