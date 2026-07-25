@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Block Blast 2048 - Fixed Navigation</title>
+    <style>
+        :root {
+            --cell-size: 65px;
+            --gap: 6px;
+        }
+        @media (max-height: 740px), (max-width: 400px) {
+            :root {
+                --cell-size: 52px;
+                --gap: 5px;
+            }
+            h1 { font-size: 26px !important; margin: 0 0 15px 0 !important; }
+            .header h2 { font-size: 22px !important; }
+            .btn { padding: 8px 12px !important; font-size: 13px !important; }
+            .main-menu { padding: 25px !important; width: 240px !important; }
+        }
+        body {
+            font-family: 'Arial', sans-serif;
+            background-color: #faf8ef;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 10px 0;
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: manipulation; 
+            overflow: hidden;
+        }
+        .main-menu {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: #bbada0;
+            padding: 40px;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.15);
+            text-align: center;
+            width: 280px;
+            z-index: 20;
+        }
+        .main-menu h1 { margin: 0 0 30px 0; color: white; font-size: 32px; }
+        .menu-layout { display: flex; flex-direction: column; gap: 12px; width: 100%; }
+        .btn-menu { padding: 15px; font-size: 18px; width: 100%; pointer-events: auto; }
+        .game-screen { display: none; flex-direction: column; align-items: center; z-index: 10; }
+        .header {
+            text-align: center;
+            margin-bottom: 12px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            width: 100%;
+        }
+        .header h2 { margin: 0; color: #776e65; font-size: 28px; }
+        .bottom-controls {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            margin-top: 12px;
+            width: calc((var(--cell-size) * 5) + (var(--gap) * 6));
+        }
+        .booster-row { display: flex; align-items: center; justify-content: space-between; gap: 6px; width: 100%; }
+        .btn {
+            background: #8f7a66; color: white; border: none; padding: 10px 15px; font-size: 14px;
+            font-weight: bold; border-radius: 5px; cursor: pointer; transition: background 0.2s;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .btn:hover { background: #9f8a76; }
+        .btn.active { background: #e74c3c; box-shadow: 0 0 10px #e74c3c; }
+        .btn:disabled { background: #dcd6cd; color: #a69f96; cursor: not-allowed; }
+        .btn-booster-action { flex: 1; text-align: left; }
+        .btn-info {
+            background: #776e65; color: white; border: none; width: 28px; height: 28px;
+            font-size: 13px; font-weight: bold; border-radius: 50%; cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .info-panel { display: flex; gap: 8px; margin-top: 4px; }
+        .badge-container {
+            background: #bbada0; padding: 6px 12px; font-size: 13px; font-weight: bold;
+            color: white; border-radius: 5px; text-align: center; min-width: 60px;
+        }
+        .badge-container span { display: block; font-size: 16px; margin-top: 2px; }
+        .game-container { position: relative; }
+        .grid {
+            display: grid; grid-template-columns: repeat(5, var(--cell-size)); grid-template-rows: repeat(7, var(--cell-size));
+            gap: var(--gap); background: #bbada0; padding: var(--gap); border-radius: 6px; position: relative; overflow: hidden;
+        }
+        .cell-slot { width: var(--cell-size); height: var(--cell-size); background-color: #cdc1b4; border-radius: 4px; }
+        .tile {
+            position: absolute; width: var(--cell-size); height: var(--cell-size); border-radius: 4px;
+            display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: bold; cursor: pointer;
+            transform: translate3d(0,0,0); -webkit-transform: translate3d(0,0,0);
+            transition: top 0.23s cubic-bezier(0.25, 0.46, 0.45, 0.94), left 0.23s cubic-bezier(0.25, 0.46, 0.45, 0.94), background-color 0.15s, border 0.1s ease-in-out;
+            z-index: 5; -webkit-tap-highlight-color: transparent;
+            box-sizing: border-box; border: 0px solid transparent;
+        }
+        .tile.selected-for-swap { box-shadow: 0 0 14px #f1c40f; transform: scale(1.04) translate3d(0,0,0); z-index: 6; }
+        
+        .tile.will-combine {
+            border: 3px solid #e74c3c !important;
+            box-shadow: inset 0 0 8px rgba(231, 76, 60, 0.5), 0 0 6px rgba(231, 76, 60, 0.3);
+            animation: pulse-preview 0.6s infinite alternate;
+        }
+        @keyframes pulse-preview {
+            0% { transform: scale(1); }
+            100% { transform: scale(0.97); }
+        }
+
+        .game-over-overlay {
+            position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(238, 228, 218, 0.85);
+            display: none; flex-direction: column; align-items: center; justify-content: center; border-radius: 6px; z-index: 10;
+        }
+        .game-over-overlay h2 { font-size: 34px; color: #776e65; margin: 0 0 10px 0; }
+        .coin-popup {
+            position: absolute; font-size: 18px; font-weight: bold; color: #f1c40f; text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+            pointer-events: none; z-index: 20; animation: floatUp 0.8s ease-out forwards;
+        }
+        @keyframes floatUp { 0% { transform: translateY(0); opacity: 1; } 100% { transform: translateY(-40px); opacity: 0; } }
+
+        .v-2 { background: #eee4da; color: #776e65; }
+        .v-4 { background: #ede0c8; color: #776e65; }
+        .v-8 { background: #f2b179; color: #f9f6f2; }
+        .v-16 { background: #f59563; color: #f9f6f2; }
+        .v-32 { background: #f67c5f; color: #f9f6f2; }
+        .v-64 { background: #f65e3b; color: #f9f6f2; }
+        .v-128 { background: #edcf72; color: #f9f6f2; font-size: 18px; }
+        .v-256 { background: #edcc61; color: #f9f6f2; font-size: 18px; }
+        .v-512 { background: #edc850; color: #f9f6f2; font-size: 18px; }
+        .v-1024 { background: #edc53f; color: #f9f6f2; font-size: 16px; }
+        .v-2048 { background: #edc22e; color: #f9f6f2; font-size: 16px; }
+        .v-4096 { background: #a55eea; color: #f9f6f2; font-size: 16px; }
+        .v-8192 { background: #ff5e57; color: #f9f6f2; font-size: 16px; }
+        .v-16384 { background: #0be881; color: #f9f6f2; font-size: 14px; }
+        .v-32768 { background: #3c40c6; color: #f9f6f2; font-size: 14px; }
+        .v-65536 { background: #f53b57; color: #f9f6f2; font-size: 14px; }
+        .v-131072 { background: #00d2d3; color: #f9f6f2; font-size: 12px; }
+        .v-262144 { background: #ff9f43; color: #f9f6f2; font-size: 12px; }
+        .v-super { background: #1e272e; color: #ef5777; font-size: 12px; text-transform: uppercase; }
+    </style>
+</head>
+<body>
+    <div class="main-menu" id="main-menu">
+        <h1>Block Blast 2048</h1>
+        <div class="menu-layout">
+            <button class="btn btn-menu" id="menu-new-btn">🔄 Новая игра</button>
+            <button class="btn btn-menu" id="menu-load-btn" disabled>💾 Продолжить</button>
+        </div>
+    </div>
+    <div class="game-screen" id="game-screen">
+        <div class="header">
+            <h2>Block Blast 2048</h2>
+            <button class="btn" id="to-menu-btn" style="padding: 10px 22px; font-size: 15px; background: #e67e22;">🚪 В меню</button>
+            <div class="info-panel">
+                <div class="badge-container">Счет<span id="score">0</span></div>
+                <div class="badge-container">Рекорд<span id="high-score">0</span></div>
+                <div class="badge-container">Монеты🪙<span id="coins-count">0</span></div>
+            </div>
+        </div>
+        <div class="game-container" id="game-container">
+            <div class="grid" id="grid-bg"></div>
+            <div class="game-over-overlay" id="game-over">
+                <h2>Игра окончена!</h2>
+                <button class="btn" id="retry-btn">В главное меню</button>
+            </div>
+        </div>
+        <div class="bottom-controls">
+            <div class="booster-row">
+                <button class="btn btn-booster-action" id="hammer-btn">🔨 Молоток (1)</button>
+                <button class="btn" id="buy-hammer-btn" disabled>🛒 Купить (40🪙)</button>
+                <button class="btn-info" id="info-hammer-btn">❔</button>
+            </div>
+            <div class="booster-row">
+                <button class="btn btn-booster-action" id="swap-btn">🔄 Замена (1)</button>
+                <button class="btn" id="buy-swap-btn" disabled>🛒 Купить (40🪙)</button>
+                <button class="btn-info" id="info-swap-btn">❔</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const ROWS = 7; const COLS = 5;
+
+        let board = []; let score = 0;
+        let highScore = parseInt(localStorage.getItem('bb2048_highScore')) || 0;
+        let coins = 0; let hammers = 1; let swaps = 1; 
+
+        let isHammerActive = false; let isSwapActive = false; let firstSwapTile = null; 
+        let discoveredNumbers = new Set();
+
+        const mainMenuScreen = document.getElementById('main-menu');
+        const gameScreen = document.getElementById('game-screen');
+        const gridBg = document.getElementById('grid-bg');
+        const gameContainer = document.getElementById('game-container');
+        const scoreElement = document.getElementById('score');
+        const highScoreElement = document.getElementById('high-score');
+        const coinsElement = document.getElementById('coins-count');
+        const hammerBtn = document.getElementById('hammer-btn');
+        const buyHammerBtn = document.getElementById('buy-hammer-btn');
+        const swapBtn = document.getElementById('swap-btn');
+        const buySwapBtn = document.getElementById('buy-swap-btn');
+        const menuNewBtn = document.getElementById('menu-new-btn');
+        const menuLoadBtn = document.getElementById('menu-load-btn');
+        const toMenuBtn = document.getElementById('to-menu-btn');
+        const retryBtn = document.getElementById('retry-btn');
+        const gameOverOverlay = document.getElementById('game-over');
+
+        function initGridStructure() {
+            gridBg.innerHTML = '';
+            for (let i = 0; i < ROWS * COLS; i++) {
+                const slot = document.createElement('div'); slot.className = 'cell-slot';
+                gridBg.appendChild(slot);
+            }
+        }
+
+        function getCellSizeConfig() {
+            const computedStyle = getComputedStyle(document.documentElement);
+            return {
+                size: parseInt(computedStyle.getPropertyValue('--cell-size')) || 65,
+                gap: parseInt(computedStyle.getPropertyValue('--gap')) || 7
+            };
+        }
+
+        function updateUI() {
+            scoreElement.innerText = score; highScoreElement.innerText = highScore; coinsElement.innerText = coins;
+            hammerBtn.innerHTML = `🔨 Молоток (${hammers})`; swapBtn.innerHTML = `🔄 Замена (${swaps})`;
+            buyHammerBtn.disabled = coins < 40; buySwapBtn.disabled = coins < 40;
+            hammerBtn.disabled = hammers === 0; swapBtn.disabled = swaps === 0;
+            
+            const hasSave = !!localStorage.getItem('bb2048_saved_board');
+            menuLoadBtn.disabled = !hasSave;
+        }
+
+        function saveGame() {
+            const minifiedBoard = [];
+            for (let r = 0; r < ROWS; r++) {
+                minifiedBoard[r] = [];
+                for (let c = 0; c < COLS; c++) {
+                    minifiedBoard[r][c] = board[r][c] ? { value: board[r][c].value } : null;
+                }
+            }
+            localStorage.setItem('bb2048_saved_board', JSON.stringify(minifiedBoard));
+            localStorage.setItem('bb2048_saved_score', score); localStorage.setItem('bb2048_saved_coins', coins);
+            localStorage.setItem('bb2048_saved_hammers', hammers); localStorage.setItem('bb2048_saved_swaps', swaps);
+            localStorage.setItem('bb2048_saved_discovered', JSON.stringify(Array.from(discoveredNumbers)));
+        }
+        function loadGame() {
+            const savedBoard = localStorage.getItem('bb2048_saved_board'); if (!savedBoard) return;
+            document.querySelectorAll('.tile').forEach(t => t.remove());
+            score = parseInt(localStorage.getItem('bb2048_saved_score')) || 0;
+            coins = parseInt(localStorage.getItem('bb2048_saved_coins')) || 0;
+            hammers = parseInt(localStorage.getItem('bb2048_saved_hammers')) || 1;
+            swaps = parseInt(localStorage.getItem('bb2048_saved_swaps')) || 1;
+            discoveredNumbers = new Set(JSON.parse(localStorage.getItem('bb2048_saved_discovered')) || []);
+            isHammerActive = isSwapActive = false; firstSwapTile = null;
+            hammerBtn.classList.remove('active'); swapBtn.classList.remove('active');
+            gameContainer.className = 'game-container'; gameOverOverlay.style.display = 'none';
+            const rawBoard = JSON.parse(savedBoard); board = [];
+            for (let r = 0; r < ROWS; r++) {
+                board[r] = [];
+                for (let c = 0; c < COLS; c++) {
+                    board[r][c] = rawBoard[r][c] ? { value: rawBoard[r][c].value, element: null, spawnRow: r } : null;
+                }
+            }
+            mainMenuScreen.style.display = 'none'; gameScreen.style.display = 'flex';
+            renderTiles(); updateUI();
+        }
+
+        function startNewGame() {
+            score = 0; coins = 0; hammers = 1; swaps = 1; isHammerActive = isSwapActive = false; firstSwapTile = null;
+            hammerBtn.classList.remove('active'); swapBtn.classList.remove('active');
+            gameContainer.className = 'game-container'; gameOverOverlay.style.display = 'none';
+            
+            discoveredNumbers.clear();
+            for (let i = 1; i <= 5; i++) {
+                discoveredNumbers.add(Math.pow(2, i));
+            }
+            
+            document.querySelectorAll('.tile').forEach(t => t.remove());
+            board = Array.from({ length: ROWS }, () => Array(COLS).fill(null));
+            mainMenuScreen.style.display = 'none'; gameScreen.style.display = 'flex';
+            refillBoard(true); renderTiles(); saveGame(); updateUI();
+        }
+
+        function getPixels(row, col) {
+            const { size, gap } = getCellSizeConfig();
+            return { top: gap + row * (size + gap), left: gap + col * (size + gap) };
+        }
+
+        function renderTiles() {
+            for (let r = 0; r < ROWS; r++) {
+                for (let c = 0; c < COLS; c++) {
+                    const tileData = board[r][c];
+                    if (tileData) {
+                        const { top, left } = getPixels(r, c);
+                        if (!tileData.element) {
+                            const el = document.createElement('div'); el.innerText = tileData.value;
+                            const startPos = getPixels(tileData.spawnRow, c); el.style.top = `${startPos.top}px`; el.style.left = `${left}px`;
+                            gridBg.appendChild(el); tileData.element = el;
+                            setTimeout(() => { el.style.top = `${top}px`; }, 20);
+                        } else {
+                            tileData.element.style.top = `${top}px`; tileData.element.style.left = `${left}px`; tileData.element.innerText = tileData.value;
+                        }
+                        tileData.element.className = 'tile';
+                        if (tileData.value <= 262144) tileData.element.classList.add(`v-${tileData.value}`);
+                        else tileData.element.classList.add('v-super');
+                        
+                        tileData.element.onclick = () => handleTileClick(r, c);
+                        tileData.element.onmouseenter = () => highlightConnected(r, c);
+                        tileData.element.onmouseleave = () => clearHighlight();
+                    }
+                }
+            }
+        }
+
+        function highlightConnected(r, c) {
+            if (isHammerActive || isSwapActive) return;
+            const targetTile = board[r][c]; if (!targetTile) return;
+            const connected = findConnectedTiles(r, c, targetTile.value);
+            if (connected.length >= 2) {
+                connected.forEach(p => {
+                    if (board[p.r][p.c] && board[p.r][p.c].element) {
+                        board[p.r][p.c].element.classList.add('will-combine');
+                    }
+                });
+            }
+        }
+
+        function clearHighlight() {
+            document.querySelectorAll('.tile.will-combine').forEach(el => el.classList.remove('will-combine'));
+        }
+
+        function spawnCoinPopup(row, col) {
+            const { top, left } = getPixels(row, col);
+            const popup = document.createElement('div'); popup.className = 'coin-popup'; popup.innerText = '+10 🪙';
+            popup.style.top = `${top}px`; popup.style.left = `${left + 5}px`;
+            gridBg.appendChild(popup); setTimeout(() => popup.remove(), 800);
+        }
+        function triggerMerge(r, c, connected) {
+            clearHighlight();
+            const targetTile = board[r][c];
+            const count = connected.length;
+            let multiplier = count >= 3 && count <= 4 ? 4 : count >= 5 && count <= 6 ? 8 : count > 6 ? 8 * Math.pow(2, Math.floor((count - 5) / 2)) : 2;
+            
+            score += connected.reduce((sum, p) => sum + board[p.r][p.c].value, 0);
+            if (score > highScore) { highScore = score; localStorage.setItem('bb2048_highScore', highScore); }
+            
+            connected.forEach(p => {
+                if (p.r === r && p.c === c) {
+                    const newValue = targetTile.value * multiplier; targetTile.value = newValue;
+                    if (!discoveredNumbers.has(newValue)) { discoveredNumbers.add(newValue); coins += 10; spawnCoinPopup(r, c); }
+                } else { if (board[p.r][p.c].element) board[p.r][p.c].element.remove(); board[p.r][p.c] = null; }
+            });
+            applyGravity();
+        }
+
+        function handleTileClick(r, c) {
+            const targetTile = board[r][c]; if (!targetTile) return;
+            if (isHammerActive) {
+                targetTile.element.remove(); board[r][c] = null; hammers--; isHammerActive = false;
+                hammerBtn.classList.remove('active'); gameContainer.className = 'game-container';
+                applyGravity(); updateUI(); return;
+            }
+            if (isSwapActive) {
+                if (!firstSwapTile) { firstSwapTile = { r, c, tile: targetTile }; targetTile.element.classList.add('selected-for-swap'); }
+                else {
+                    const first = firstSwapTile; first.tile.element.classList.remove('selected-for-swap');
+                    board[first.r][first.c] = targetTile; board[r][c] = first.tile;
+                    swaps--; isSwapActive = false; swapBtn.classList.remove('active'); gameContainer.className = 'game-container'; firstSwapTile = null;
+                    renderTiles(); saveGame();
+                    
+                    setTimeout(() => {
+                        let matchesFound = false;
+                        for (let row = 0; row < ROWS; row++) {
+                            for (let col = 0; col < COLS; col++) {
+                                if (board[row][col]) {
+                                    const match = findConnectedTiles(row, col, board[row][col].value);
+                                    if (match.length >= 2) { triggerMerge(row, col, match); matchesFound = true; break; }
+                                }
+                            }
+                            if (matchesFound) break;
+                        }
+                    }, 350);
+                    updateUI();
+                }
+                return;
+            }
+            const connected = findConnectedTiles(r, c, targetTile.value);
+            if (connected.length >= 2) { triggerMerge(r, c, connected); updateUI(); }
+        }
+
+        function findConnectedTiles(startR, startC, val) {
+            const queue = [{ r: startR, c: startC }]; const visited = Array.from({ length: ROWS }, () => Array(COLS).fill(false)); const result = []; visited[startR][startC] = true;
+            while (queue.length > 0) {
+                const curr = queue.shift(); result.push(curr);
+                const directions = [{ r: -1, c: 0 }, { r: 1, c: 0 }, { r: 0, c: -1 }, { r: 0, c: 1 }, { r: -1, c: -1 }, { r: -1, c: 1 }, { r: 1, c: -1 }, { r: 1, c: 1 }];
+                for (let d of directions) {
+                    const nr = curr.r + d.r; const nc = curr.c + d.c;
+                    if (nr >= 0 && nr < ROWS && nc >= 0 && nc < COLS) {
+                        if (!visited[nr][nc] && board[nr][nc] && board[nr][nc].value === val) { visited[nr][nc] = true; queue.push({ r: nr, c: nc }); }
+                    }
+                }
+            }
+            return result;
+        }
+
+        function applyGravity() {
+            for (let c = 0; c < COLS; c++) {
+                let writeRow = ROWS - 1;
+                for (let r = ROWS - 1; r >= 0; r--) {
+                    if (board[r][c] !== null) { if (r !== writeRow) { board[writeRow][c] = board[r][c]; board[r][c] = null; } writeRow--; }
+                }
+            }
+            refillBoard(false); renderTiles(); saveGame(); setTimeout(checkGameOver, 300);
+        }
+
+        function refillBoard(isInitialSetup) {
+            for (let c = 0; c < COLS; c++) {
+                let missing = 0;
+                for (let r = ROWS - 1; r >= 0; r--) {
+                    if (board[r][c] === null) {
+                        missing++;
+                        const generatedValue = Math.pow(2, Math.floor(Math.random() * 5) + 1);
+                        board[r][c] = { value: generatedValue, element: null, spawnRow: isInitialSetup ? -(ROWS - r) : -missing };
+                    }
+                }
+            }
+        }
+
+        function checkGameOver() {
+            if (hammers > 0 || swaps > 0 || coins >= 40) return;
+            for (let r = 0; r < ROWS; r++) {
+                for (let c = 0; c < COLS; c++) {
+                    if (!board[r][c]) return; const val = board[r][c].value;
+                    const checkDirs = [{ r: -1, c: 0 }, { r: 1, c: 0 }, { r: 0, c: -1 }, { r: 0, c: 1 }, { r: -1, c: -1 }, { r: -1, c: 1 }, { r: 1, c: -1 }, { r: 1, c: 1 }];
+                    for (let d of checkDirs) {
+                        const nr = r + d.r; const nc = c + d.c;
+                        if (nr >= 0 && nr < ROWS && nc >= 0 && nc < COLS) { if (board[nr][nc] && board[nr][nc].value === val) return; }
+                    }
+                }
+            }
+            gameOverOverlay.style.display = 'flex';
+        }
+
+        // Ключевое исправление: Создание функции навигации в главное меню
+        function returnToMenu() {
+            saveGame();
+            gameScreen.style.display = 'none';
+            mainMenuScreen.style.display = 'flex';
+            updateUI();
+        }
+
+        document.getElementById('to-menu-btn').onclick = returnToMenu;
+        document.getElementById('retry-btn').onclick = returnToMenu;
+        window.onresize = () => { if (gameScreen.style.display === 'flex') renderTiles(); };
+
+        hammerBtn.onclick = () => {
+            if (hammers <= 0) return; isHammerActive = !isHammerActive;
+            if(isHammerActive && firstSwapTile) { firstSwapTile.tile.element.classList.remove('selected-for-swap'); firstSwapTile = null; }
+            isSwapActive = false; swapBtn.classList.remove('active'); gameContainer.className = 'game-container';
+            hammerBtn.classList.toggle('active', isHammerActive);
+        };
+        swapBtn.onclick = () => {
+            if (swaps <= 0) return; isSwapActive = !isSwapActive;
+            isHammerActive = false; hammerBtn.classList.remove('active');
+            if(!isSwapActive && firstSwapTile) { firstSwapTile.tile.element.classList.remove('selected-for-swap'); firstSwapTile = null; }
+            swapBtn.classList.toggle('active', isSwapActive);
+        };
+
+        buyHammerBtn.onclick = () => { if (coins >= 40) { coins -= 40; hammers++; saveGame(); updateUI(); } };
+        buySwapBtn.onclick = () => { if (coins >= 40) { coins -= 40; swaps++; saveGame(); updateUI(); } };
+        document.getElementById('info-hammer-btn').onclick = () => alert("Бустер 'Молоток' 1\n\nУничтожает любой выбранный кубик на поле.");
+        document.getElementById('info-swap-btn').onclick = () => alert("Бустер 'Замена' 1\n\nПозволяет поменять местами любые две плитки на поле.");
+
+        menuNewBtn.onclick = startNewGame;
+        menuLoadBtn.onclick = loadGame;
+        
+        mainMenuScreen.style.display = 'flex';
+        gameScreen.style.display = 'none';
+        
+        initGridStructure(); updateUI();
+    </script>
+</body>
+</html>
