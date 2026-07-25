@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Найди вторую картинку</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-top: 20px;
+  }
+  #controls {
+    margin-bottom: 10px;
+  }
+  #controls input {
+    width: 60px;
+  }
+  #game {
+    display: grid;
+    gap: 10px;
+    margin-top: 10px;
+  }
+  .card {
+    width: 80px;
+    height: 80px;
+    background-color: #ccc;
+    border: 2px solid #999;
+    border-radius: 8px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    box-shadow: inset 0 0 10px rgba(0,0,0,0.2);
+  }
+  .card img {
+    max-width: 70%;
+    max-height: 70%;
+    display: none;
+  }
+  .card.revealed img {
+    display: block;
+  }
+</style>
+</head>
+<body>
+
+<h1>Найди вторую картинку</h1>
+<div id="controls">
+  Количество пар: <input type="number" id="pairCount" value="8" min="2" max="50"/>
+  <button onclick="startGame()">Начать игру</button>
+</div>
+<div id="score">Счёт: 0</div>
+<div id="game"></div>
+<div id="status"></div>
+
+<script>
+const imageLinks = [
+  // You can replace these URLs with your own images
+  'img/01.png',
+  'img/02.png',
+  'img/03.png',
+  'img/04.png',
+  'img/05.png',
+  'img/06.png',
+  'img/07.png',
+  'img/08.png',
+  'img/09.png',
+  'img/10.png',
+  'img/11.png',
+  'img/12.png',
+  'img/13.png',
+  'img/14.png',
+  'img/15.png',
+  'img/16.png',
+  'img/17.png',
+  'img/18.png',
+  'img/19.png',
+  'img/20.png',
+  'img/21.png',
+  'img/22.png',
+  'img/23.png',
+  'img/24.png',
+  'img/25.png',
+  'img/26.png',
+  'img/27.png',
+  'img/28.png',
+  'img/29.png',
+  'img/30.png',
+  'img/31.png',
+  'img/32.png',
+  'img/33.png',
+  'img/34.png',
+  'img/35.png',
+  'img/36.png',
+  'img/37.png',
+  'img/38.png',
+  'img/39.png',
+  'img/40.png',
+  'img/41.png',
+  'img/42.png',
+  'img/43.png',
+  'img/44.png'
+];
+
+let deck = [];
+let firstCard = null;
+let secondCard = null;
+let lockBoard = false;
+let score = 0;
+
+const gameContainer = document.getElementById('game');
+const scoreDiv = document.getElementById('score');
+
+function startGame() {
+  const pairCount = parseInt(document.getElementById('pairCount').value);
+  if (pairCount < 2 || pairCount > imageLinks.length) {
+    alert(`Пожалуйста, выберете от 2 до ${imageLinks.length}`);
+    return;
+  }
+  resetGame();
+  createDeck(pairCount);
+  shuffleDeck();
+  renderDeck();
+}
+
+// Reset game variables
+function resetGame() {
+  deck = [];
+  firstCard = null;
+  secondCard = null;
+  lockBoard = false;
+  score = 0;
+  scoreDiv.textContent = `Счёт: ${score}`;
+  document.getElementById('status').textContent = '';
+  gameContainer.innerHTML = '';
+}
+
+// Create deck based on number of pairs
+function createDeck(pairCount) {
+  const selectedImages = imageLinks.slice(0, pairCount);
+  deck = [];
+  selectedImages.forEach((img, index) => {
+    deck.push({ id: index, img: img, matched: false });
+    deck.push({ id: index, img: img, matched: false });
+  });
+}
+
+// Shuffle deck
+function shuffleDeck() {
+  for (let i = deck.length -1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [deck[i], deck[j]] = [deck[j], deck[i]];
+  }
+}
+
+// Render deck to the DOM with a square grid
+function renderDeck() {
+  // Calculate grid size as close to square as possible
+  const totalCards = deck.length;
+
+gridSize = Math.ceil(Math.sqrt(totalCards)); //  const 
+  if (gridSize > 4)
+{
+	gridSize = 4;
+}
+  gameContainer.style.gridTemplateColumns = `repeat(${gridSize}, 1fr)`;
+  
+  deck.forEach((card, index) => {
+    const cardDiv = document.createElement('div');
+    cardDiv.className = 'card';
+    cardDiv.dataset.index = index;
+    cardDiv.addEventListener('click', handleCardClick);
+    const img = document.createElement('img');
+    img.src = card.img;
+    cardDiv.appendChild(img);
+    gameContainer.appendChild(cardDiv);
+  });
+}
+
+// Handle card click
+function handleCardClick(e) {
+  if (lockBoard) return;
+  const index = parseInt(e.currentTarget.dataset.index);
+  const card = deck[index];
+  if (card.matched || e.currentTarget.classList.contains('revealed')) return;
+
+  revealCard(e.currentTarget);
+
+  if (!firstCard) {
+    firstCard = { card: card, element: e.currentTarget };
+  } else if (!secondCard && e.currentTarget !== firstCard.element) {
+    secondCard = { card: card, element: e.currentTarget };
+    lockBoard = true;
+    checkMatch();
+  }
+}
+
+// Reveal card
+function revealCard(cardDiv) {
+  cardDiv.classList.add('revealed');
+}
+
+// Hide card
+function hideCard(cardDiv) {
+  cardDiv.classList.remove('revealed');
+}
+
+// Check for match
+function checkMatch() {
+  if (firstCard.card.id === secondCard.card.id) {
+    // Match found
+    firstCard.card.matched = true;
+    secondCard.card.matched = true;
+    score += 10;
+    scoreDiv.textContent = `Счёт: ${score}`;
+    // Remove matched cards after a short delay
+    setTimeout(() => {
+      firstCard.element.style.visibility='hidden';
+      secondCard.element.style.visibility='hidden';
+      resetSelection();
+      checkGameEnd();
+    }, 500);
+  } else {
+    // Not a match
+    if (score > 0) {
+      score -= 10;
+      scoreDiv.textContent = `Счёт: ${score}`;
+    }
+    setTimeout(() => {
+      hideCard(firstCard.element);
+      hideCard(secondCard.element);
+      resetSelection();
+    }, 1000);
+  }
+}
+
+// Reset selection
+function resetSelection() {
+  firstCard = null;
+  secondCard = null;
+  lockBoard = false;
+}
+
+// Check if game is over
+function checkGameEnd() {
+  const remaining = Array.from(document.querySelectorAll('.card')).filter(c => c.style.visibility !== 'hidden');
+  if (remaining.length === 0) {
+    document.getElementById('status').textContent = `Поздравляем! Вы победили со счётом ${score}!`;
+  }
+}
+
+// Initialize the game on page load
+startGame();
+</script>
+
+</body>
+</html>
