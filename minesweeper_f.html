@@ -1,0 +1,797 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Сапер — мобильная версия</title>
+    <style>
+        :root {
+            --bg: #1a1a2e;
+            --cell-bg: #2d2d44;
+            --cell-hover: #3d3d5c;
+            --cell-revealed: #1e1e32;
+            --mine: #e94560;
+            --flag: #f5c518;
+            --diamond: #00d2ff;
+            --life: #ff6b6b;
+            --glasses: #ffd93d;
+            --map: #a0ff70;
+            --text: #eee;
+            --accent: #6c63ff;
+            --timer: #ff6584;
+            --score: #4ecdc4;
+        }
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body {
+            background: var(--bg);
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            display: flex; justify-content: center; align-items: center;
+            min-height: 100vh; color: var(--text);
+            user-select: none; -webkit-user-select: none;
+            padding: 10px;
+            touch-action: manipulation; /* улучшает отклик на касания */
+        }
+        .game-wrapper {
+            background: rgba(255,255,255,0.03); border-radius: 20px; padding: 15px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.5); backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.08); display: flex; flex-direction: column;
+            align-items: center; gap: 12px;
+            width: 100%; max-width: 500px;
+        }
+        h1 { font-size: 1.4rem; margin: 0; }
+
+        .mode-selector {
+            display: flex; gap: 6px; background: rgba(0,0,0,0.3); border-radius: 25px; padding: 4px;
+        }
+        .mode-btn {
+            padding: 8px 14px; border: none; background: transparent; color: #aaa; border-radius: 20px;
+            cursor: pointer; font-weight: 600; font-size: 0.8rem; transition: all 0.3s; letter-spacing: 0.3px;
+            white-space: nowrap;
+        }
+        .mode-btn.active { background: var(--accent); color: white; box-shadow: 0 4px 15px rgba(108,99,255,0.4); }
+        .mode-btn:hover:not(.active) { color: white; background: rgba(255,255,255,0.1); }
+
+        .records-panel {
+            width: 100%; background: rgba(0,0,0,0.2); border-radius: 12px;
+            padding: 6px 10px; font-size: 0.75rem; max-height: 100px; overflow-y: auto;
+        }
+        .records-title { text-align: center; color: var(--accent); font-weight: 700; margin-bottom: 4px; font-size: 0.85rem; }
+        .record-item {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 3px 6px; border-bottom: 1px solid rgba(255,255,255,0.06);
+        }
+        .record-item:last-child { border-bottom: none; }
+        .record-mode { color: #aaa; font-weight: 600; font-size: 0.75rem; }
+        .record-stats { color: var(--accent); font-weight: 700; font-size: 0.75rem; }
+        .no-records { color: #666; text-align: center; padding: 6px; font-size: 0.75rem; }
+
+        .difficulty-selector { display:flex; gap:6px; background:rgba(0,0,0,0.3); border-radius:25px; padding:4px; flex-wrap: wrap; justify-content: center; }
+        .difficulty-btn {
+            padding:8px 14px; border:none; background:transparent; color:#aaa; border-radius:20px;
+            cursor:pointer; font-weight:600; font-size:0.8rem; transition:all 0.3s; letter-spacing:0.3px; white-space: nowrap;
+        }
+        .difficulty-btn.active { background:var(--accent); color:white; box-shadow:0 4px 15px rgba(108,99,255,0.4); }
+        .difficulty-btn:hover:not(.active) { color:white; background:rgba(255,255,255,0.1); }
+
+        .stats-panel { display:flex; flex-direction: column; gap:8px; align-items:center; width:100%; }
+        .stats-row { display:flex; gap:8px; align-items:center; justify-content:center; flex-wrap:wrap; }
+        .stat-item { display:flex; align-items:center; gap:4px; background:rgba(0,0,0,0.3); padding:6px 10px; border-radius:10px; font-weight:600; font-size:0.8rem; }
+        .stat-icon { font-size:1rem; }
+        .stat-value { color:var(--accent); font-size:0.9rem; min-width:24px; text-align:center; }
+        .timer-value { color:var(--timer); }
+        .score-value { color:var(--score); }
+        .mines-value { color: var(--mine); }
+        .lives-container { display:flex; gap:3px; }
+        .heart { color:var(--life); font-size:0.9rem; transition:all 0.3s; }
+        .glasses-indicator {
+            background:rgba(255,217,61,0.15); border:2px solid var(--glasses); padding:4px 10px;
+            border-radius:15px; font-weight:600; color:var(--glasses); display:flex; align-items:center;
+            gap:4px; cursor:pointer; transition:all 0.3s; font-size:0.7rem;
+        }
+        .glasses-indicator.active-glow { animation:glowPulse 0.8s infinite; box-shadow:0 0 20px rgba(255,217,61,0.6); }
+        @keyframes glowPulse { 0%,100%{ box-shadow:0 0 15px rgba(255,217,61,0.4); } 50%{ box-shadow:0 0 30px rgba(255,217,61,0.9); } }
+
+        .game-board {
+            display:grid; gap:2px; background:rgba(0,0,0,0.4); padding:6px; border-radius:12px;
+            box-shadow:inset 0 0 15px rgba(0,0,0,0.5); position: relative;
+        }
+        .cell {
+            width:36px; height:36px; background:var(--cell-bg); border-radius:5px; cursor:pointer;
+            display:flex; align-items:center; justify-content:center; font-weight:700; font-size:0.9rem;
+            transition:all 0.1s; position:relative; color:white;
+            box-shadow:0 2px 5px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.05);
+            touch-action: manipulation; /* улучшает отклик */
+        }
+        .cell:active:not(.revealed):not(.game-over-cell) { transform: scale(0.95); }
+        .cell.revealed { background:var(--cell-revealed); cursor:default; box-shadow:inset 0 1px 3px rgba(0,0,0,0.5); }
+        .cell.flagged { background:#3a2e1e; }
+        .cell.mine-exploded { background:#5c1a1a !important; animation:explode 0.4s ease-out; }
+        @keyframes explode { 0%{ transform:scale(1); background:#ff4444; } 50%{ transform:scale(1.1); } 100%{ transform:scale(1); } }
+        .cell.peeked { background:#2a2a4a; border:2px solid var(--glasses); animation:peekBorder 0.4s ease; }
+        @keyframes peekBorder { 0%{ border-color:transparent; } 100%{ border-color:var(--glasses); } }
+        .number-1 { color:#64b5f6; } .number-2 { color:#81c784; } .number-3 { color:#ef5350; }
+        .number-4 { color:#ab47bc; } .number-5 { color:#ff7043; } .number-6 { color:#26c6da; }
+        .number-7 { color:#78909c; } .number-8 { color:#bdbdbd; }
+
+        .bonus-popup {
+            position: absolute; font-size: 1.6rem; z-index: 10; pointer-events: none;
+            animation: popupFloat 1.2s ease-out forwards;
+        }
+        @keyframes popupFloat {
+            0% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+            50% { opacity: 1; transform: translate(-50%, -120%) scale(1.2); }
+            100% { opacity: 0; transform: translate(-50%, -200%) scale(0.8); }
+        }
+
+        .btn {
+            padding:10px 24px; background:var(--accent); color:white; border:none; border-radius:20px;
+            font-weight:700; font-size:0.9rem; cursor:pointer; transition:all 0.3s; letter-spacing:0.3px;
+            box-shadow:0 6px 20px rgba(108,99,255,0.3);
+        }
+        .btn:active { transform: scale(0.96); }
+        .btn-sm { padding:6px 14px; font-size:0.7rem; background:#444; color:white; border-radius:15px; box-shadow:none; }
+        .btn-sm:active { background:#666; }
+        .message-area { font-weight:700; font-size:0.8rem; min-height:18px; text-align:center; color:#ffd93d; }
+
+        /* Мобильная адаптация */
+        @media (max-width: 600px) {
+            .game-wrapper { padding: 10px; gap: 10px; }
+            h1 { font-size: 1.2rem; }
+            .mode-btn, .difficulty-btn { padding: 6px 10px; font-size: 0.7rem; }
+            .cell { width: 30px; height: 30px; font-size: 0.75rem; }
+            .game-board { gap: 2px; padding: 4px; }
+            .stats-row { gap: 4px; }
+            .stat-item { font-size: 0.7rem; padding: 5px 8px; }
+            .records-panel { font-size: 0.7rem; }
+            .bonus-popup { font-size: 1.3rem; }
+            .btn { padding: 8px 18px; font-size: 0.8rem; }
+            .btn-sm { padding: 5px 10px; font-size: 0.65rem; }
+        }
+        @media (max-width: 400px) {
+            .cell { width: 26px; height: 26px; font-size: 0.7rem; border-radius: 4px; }
+            .mode-btn, .difficulty-btn { padding: 5px 8px; font-size: 0.65rem; }
+            .stat-item { padding: 4px 6px; font-size: 0.65rem; }
+        }
+    </style>
+</head>
+<body>
+<div class="game-wrapper">
+    <h1>💣 Сапер</h1>
+
+    <!-- Меню режима игры -->
+    <div class="mode-selector">
+        <button class="mode-btn active" data-bonus="true">С бонусами</button>
+        <button class="mode-btn" data-bonus="false">Без бонусов</button>
+    </div>
+
+    <div class="difficulty-selector">
+        <button class="difficulty-btn active" data-mode="easy">8×8 Легкий</button>
+        <button class="difficulty-btn" data-mode="medium">10×10 Средний</button>
+        <button class="difficulty-btn" data-mode="hard">12×12 Сложный</button>
+    </div>
+
+    <div class="stats-panel">
+        <div class="stats-row">
+            <div class="stat-item"><span class="stat-icon">⏱️</span><span class="stat-value timer-value" id="timerDisplay">00:00</span></div>
+            <div class="stat-item"><span class="stat-icon">💎</span><span class="stat-value score-value" id="scoreDisplay">0</span></div>
+            <div class="stat-item"><span class="stat-icon">💣</span><span class="stat-value mines-value" id="minesCounter">0</span></div>
+        </div>
+        <div class="stats-row">
+            <div class="stat-item"><span class="lives-container" id="livesDisplay"></span></div>
+            <div class="glasses-indicator" id="glassesIndicator">🕶️ <span id="glassesCount">0</span></div>
+        </div>
+    </div>
+
+    <div class="message-area" id="messageArea"></div>
+    <div class="game-board" id="gameBoard"></div>
+    <button class="btn" id="restartBtn">🔄 Новая игра</button>
+
+    <div class="records-panel" id="recordsPanel">
+        <div class="records-title">🏆 Рекорды</div>
+        <div class="no-records">Пока нет рекордов</div>
+    </div>
+    <button class="btn btn-sm" id="clearRecordsBtn">🗑 Сбросить рекорды</button>
+</div>
+
+<script>
+    (function() {
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initGame);
+        } else {
+            initGame();
+        }
+
+        function initGame() {
+            const boardEl = document.getElementById('gameBoard');
+            if (!boardEl) return;
+
+            const DIFFICULTY_CONFIG = {
+                easy: { rows: 8, cols: 8, mines: 10, timeLimit: 600 },
+                medium: { rows: 10, cols: 10, mines: 20, timeLimit: 900 },
+                hard: { rows: 12, cols: 12, mines: 35, timeLimit: 1500 }
+            };
+            const BONUS_LIFE_CHANCE = 0.02;
+            const BONUS_GLASSES_CHANCE = 0.04;
+            const BONUS_DIAMOND_CHANCE = 0.08;
+
+            let currentMode = 'easy';
+            let config = DIFFICULTY_CONFIG[currentMode];
+            let board = [];
+            let gameOver = false;
+            let gameWon = false;
+            let firstClickDone = false;
+            let lives = 1;
+            const MAX_LIVES = 3;
+            let glassesCount = 0;
+            let glassesActive = false;
+            let score = 0;
+            let timerSeconds = 0;
+            let timerInterval = null;
+            let flagsPlaced = 0;
+            let totalMines = config.mines;
+            let revealedCount = 0;
+            let totalSafeCells = config.rows * config.cols - config.mines;
+            let mapBonusPlaced = false;
+            let bonusMode = true;
+
+            let pendingPopups = [];
+
+            // ---------- Рекорды ----------
+            let memoryRecords = {};
+            let storageAvailable = true;
+            try {
+                localStorage.setItem('test', 'test');
+                localStorage.removeItem('test');
+            } catch(e) {
+                storageAvailable = false;
+            }
+
+            function loadRecords() {
+                if (storageAvailable) {
+                    try {
+                        const data = localStorage.getItem('minesweeper_records');
+                        memoryRecords = data ? JSON.parse(data) : {};
+                    } catch (e) { memoryRecords = {}; }
+                }
+                return memoryRecords;
+            }
+            function saveRecords() {
+                if (storageAvailable) {
+                    try { localStorage.setItem('minesweeper_records', JSON.stringify(memoryRecords)); } catch (e) {}
+                }
+                updateRecordsDisplay();
+            }
+            function getRecords() { return memoryRecords; }
+            function saveRecord(mode, time, scoreVal) {
+                const records = getRecords();
+                const current = records[mode];
+                const isNew = !current || scoreVal > current.score || (scoreVal === current.score && time < current.time);
+                if (isNew) {
+                    records[mode] = { time, score: scoreVal, date: new Date().toISOString() };
+                    saveRecords();
+                    return true;
+                }
+                return false;
+            }
+            function clearRecords() {
+                memoryRecords = {};
+                if (storageAvailable) {
+                    try { localStorage.removeItem('minesweeper_records'); } catch(e) {}
+                }
+                updateRecordsDisplay();
+            }
+            function updateRecordsDisplay() {
+                const records = getRecords();
+                const panel = document.getElementById('recordsPanel');
+                if (!panel) return;
+                const modeNames = { easy:'8×8 Легкий', medium:'10×10 Средний', hard:'12×12 Сложный' };
+                let html = '<div class="records-title">🏆 Рекорды</div>';
+                const entries = Object.entries(records);
+                if (entries.length === 0) {
+                    html += '<div class="no-records">Пока нет рекордов</div>';
+                } else {
+                    for (const [mode, data] of entries) {
+                        const mins = Math.floor(data.time / 60);
+                        const secs = data.time % 60;
+                        html += `<div class="record-item">
+                            <span class="record-mode">${modeNames[mode] || mode}</span>
+                            <span class="record-stats">${mins}:${secs.toString().padStart(2,'0')} | ${data.score} оч.</span>
+                        </div>`;
+                    }
+                }
+                panel.innerHTML = html;
+            }
+
+            // ---------- DOM-элементы ----------
+            const timerDisplay = document.getElementById('timerDisplay');
+            const scoreDisplay = document.getElementById('scoreDisplay');
+            const minesCounter = document.getElementById('minesCounter');
+            const livesDisplay = document.getElementById('livesDisplay');
+            const glassesIndicator = document.getElementById('glassesIndicator');
+            const glassesCountEl = document.getElementById('glassesCount');
+            const messageArea = document.getElementById('messageArea');
+            const restartBtn = document.getElementById('restartBtn');
+            const difficultyBtns = document.querySelectorAll('.difficulty-btn');
+            const clearRecordsBtn = document.getElementById('clearRecordsBtn');
+            const modeBtns = document.querySelectorAll('.mode-btn');
+
+            // ---------- Счётчик мин ----------
+            function updateMineCounter() {
+                if (minesCounter) {
+                    minesCounter.textContent = totalMines - flagsPlaced;
+                }
+            }
+
+            // ---------- Активация карты ----------
+            function activateMap() {
+                if (gameOver || gameWon) return;
+                let flagAdded = false;
+                for (let r = 0; r < config.rows; r++) {
+                    for (let c = 0; c < config.cols; c++) {
+                        const cell = board[r][c];
+                        if (!cell.revealed || cell.adjacentMines === 0) continue;
+                        for (let dr = -1; dr <= 1; dr++) {
+                            for (let dc = -1; dc <= 1; dc++) {
+                                if (dr === 0 && dc === 0) continue;
+                                const nr = r + dr, nc = c + dc;
+                                if (nr >= 0 && nr < config.rows && nc >= 0 && nc < config.cols) {
+                                    const neighbor = board[nr][nc];
+                                    if (!neighbor.revealed && neighbor.mine && !neighbor.flagged) {
+                                        neighbor.flagged = true;
+                                        flagsPlaced++;
+                                        flagAdded = true;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                if (flagAdded) {
+                    updateMineCounter();
+                    renderBoard();
+                    checkWinCondition();
+                }
+            }
+
+            // ---------- Игровая логика ----------
+            function resetGame() {
+                config = DIFFICULTY_CONFIG[currentMode];
+                totalMines = config.mines;
+                totalSafeCells = config.rows * config.cols - config.mines;
+                board = [];
+                gameOver = false;
+                gameWon = false;
+                firstClickDone = false;
+                lives = 1;
+                glassesCount = 0;
+                glassesActive = false;
+                score = 0;
+                timerSeconds = 0;
+                flagsPlaced = 0;
+                revealedCount = 0;
+                mapBonusPlaced = false;
+                pendingPopups = [];
+                clearInterval(timerInterval);
+                timerInterval = null;
+                updateTimerDisplay();
+                updateScoreDisplay();
+                updateMineCounter();
+                updateLivesDisplay();
+                updateGlassesDisplay();
+                if (messageArea) messageArea.textContent = '';
+                initBoard();
+                renderBoard();
+                updateRecordsDisplay();
+            }
+
+            function initBoard() {
+                board = [];
+                for (let r = 0; r < config.rows; r++) {
+                    board[r] = [];
+                    for (let c = 0; c < config.cols; c++) {
+                        board[r][c] = {
+                            mine: false, revealed: false, flagged: false,
+                            adjacentMines: 0, bonus: null
+                        };
+                    }
+                }
+            }
+
+            function placeMinesAndBonuses(safeRow, safeCol) {
+                const safeSet = new Set();
+                safeSet.add(`${safeRow},${safeCol}`);
+                for (let dr = -1; dr <= 1; dr++) {
+                    for (let dc = -1; dc <= 1; dc++) {
+                        const nr = safeRow + dr, nc = safeCol + dc;
+                        if (nr >= 0 && nr < config.rows && nc >= 0 && nc < config.cols) {
+                            safeSet.add(`${nr},${nc}`);
+                        }
+                    }
+                }
+                let minesPlaced = 0;
+                while (minesPlaced < config.mines) {
+                    const r = Math.floor(Math.random() * config.rows);
+                    const c = Math.floor(Math.random() * config.cols);
+                    if (!board[r][c].mine && !safeSet.has(`${r},${c}`)) {
+                        board[r][c].mine = true;
+                        minesPlaced++;
+                    }
+                }
+                for (let r = 0; r < config.rows; r++) {
+                    for (let c = 0; c < config.cols; c++) {
+                        if (!board[r][c].mine) {
+                            board[r][c].adjacentMines = countAdjacentMines(r, c);
+                        }
+                    }
+                }
+
+                if (bonusMode) {
+                    for (let r = 0; r < config.rows; r++) {
+                        for (let c = 0; c < config.cols; c++) {
+                            if (!board[r][c].mine && !(r === safeRow && c === safeCol) && board[r][c].bonus === null) {
+                                const rand = Math.random();
+                                if (rand < BONUS_LIFE_CHANCE) board[r][c].bonus = 'life';
+                                else if (rand < BONUS_LIFE_CHANCE + BONUS_GLASSES_CHANCE) board[r][c].bonus = 'glasses';
+                                else if (rand < BONUS_LIFE_CHANCE + BONUS_GLASSES_CHANCE + BONUS_DIAMOND_CHANCE) board[r][c].bonus = 'diamond';
+                            }
+                        }
+                    }
+                    if (!mapBonusPlaced) {
+                        const candidates = [];
+                        for (let r = 0; r < config.rows; r++) {
+                            for (let c = 0; c < config.cols; c++) {
+                                if (!board[r][c].mine && board[r][c].bonus === null && !(r === safeRow && c === safeCol)) {
+                                    candidates.push({r, c});
+                                }
+                            }
+                        }
+                        if (candidates.length > 0) {
+                            const pos = candidates[Math.floor(Math.random() * candidates.length)];
+                            board[pos.r][pos.c].bonus = 'map';
+                            mapBonusPlaced = true;
+                        }
+                    }
+                } else {
+                    for (let r = 0; r < config.rows; r++) {
+                        for (let c = 0; c < config.cols; c++) {
+                            if (!board[r][c].mine && !(r === safeRow && c === safeCol) && board[r][c].bonus === null) {
+                                if (Math.random() < BONUS_DIAMOND_CHANCE) board[r][c].bonus = 'diamond';
+                            }
+                        }
+                    }
+                }
+            }
+
+            function countAdjacentMines(row, col) {
+                let count = 0;
+                for (let dr = -1; dr <= 1; dr++) {
+                    for (let dc = -1; dc <= 1; dc++) {
+                        if (dr === 0 && dc === 0) continue;
+                        const nr = row + dr, nc = col + dc;
+                        if (nr >= 0 && nr < config.rows && nc >= 0 && nc < config.cols && board[nr][nc].mine) count++;
+                    }
+                }
+                return count;
+            }
+
+            function startTimer() {
+                if (timerInterval) return;
+                timerInterval = setInterval(() => {
+                    timerSeconds++;
+                    updateTimerDisplay();
+                    if (timerSeconds >= config.timeLimit && !gameOver && !gameWon) {
+                        endGame(false, '⏰ Время вышло!');
+                    }
+                }, 1000);
+            }
+            function stopTimer() { clearInterval(timerInterval); timerInterval = null; }
+            function updateTimerDisplay() {
+                const m = Math.floor(timerSeconds / 60), s = timerSeconds % 60;
+                if (timerDisplay) timerDisplay.textContent = `${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
+            }
+            function updateScoreDisplay() { if (scoreDisplay) scoreDisplay.textContent = score; }
+            function addScore(p) { score += p; updateScoreDisplay(); }
+
+            function updateLivesDisplay() {
+                if (!livesDisplay) return;
+                livesDisplay.innerHTML = '';
+                for (let i = 0; i < lives; i++) {
+                    const heart = document.createElement('span');
+                    heart.className = 'heart';
+                    heart.textContent = '❤️';
+                    livesDisplay.appendChild(heart);
+                }
+            }
+
+            function addLife() {
+                if (lives < MAX_LIVES) {
+                    lives++;
+                    updateLivesDisplay();
+                    messageArea.textContent = '💖 Дополнительная жизнь!';
+                    setTimeout(() => { if (messageArea.textContent === '💖 Дополнительная жизнь!') messageArea.textContent = ''; }, 2000);
+                }
+            }
+
+            function loseLife() {
+                if (glassesActive) return false;
+                lives--;
+                updateLivesDisplay();
+                if (lives <= 0) {
+                    endGame(false, '💔 Жизни закончились!');
+                    return true;
+                }
+                messageArea.textContent = '💔 Потеряна жизнь!';
+                setTimeout(() => { if (messageArea.textContent === '💔 Потеряна жизнь!') messageArea.textContent = ''; }, 2000);
+                return false;
+            }
+
+            function updateGlassesDisplay() {
+                if (glassesCountEl) glassesCountEl.textContent = glassesCount;
+                if (glassesIndicator) glassesIndicator.classList.toggle('active-glow', glassesActive);
+            }
+            function activateGlasses() {
+                if (glassesCount <= 0 || glassesActive || gameOver || gameWon) return;
+                glassesActive = true;
+                glassesCount--;
+                updateGlassesDisplay();
+                messageArea.textContent = '🕶️ Очки активны! Кликните на клетку.';
+                document.querySelectorAll('.cell').forEach(c => c.style.cursor = 'crosshair');
+            }
+            function deactivateGlasses() {
+                glassesActive = false;
+                updateGlassesDisplay();
+                messageArea.textContent = '';
+                document.querySelectorAll('.cell').forEach(c => c.style.cursor = '');
+            }
+
+            function showBonusPopup(row, col, icon) {
+                const cellEl = document.querySelector(`.cell[data-row="${row}"][data-col="${col}"]`);
+                if (!cellEl || !boardEl) return;
+                const boardRect = boardEl.getBoundingClientRect();
+                const cellRect = cellEl.getBoundingClientRect();
+                const popup = document.createElement('div');
+                popup.className = 'bonus-popup';
+                popup.textContent = icon;
+                const left = cellRect.left - boardRect.left + cellRect.width / 2;
+                const top = cellRect.top - boardRect.top + cellRect.height / 2;
+                popup.style.left = left + 'px';
+                popup.style.top = top + 'px';
+                boardEl.appendChild(popup);
+                setTimeout(() => {
+                    if (popup.parentNode) popup.parentNode.removeChild(popup);
+                }, 1200);
+            }
+
+            function peekCell(row, col) {
+                const cell = board[row][col];
+                const cellEl = document.querySelector(`.cell[data-row="${row}"][data-col="${col}"]`);
+                if (!cellEl || cell.revealed || cell.flagged) return;
+                cellEl.classList.add('peeked');
+                if (cell.mine) { cellEl.textContent = '💣'; cellEl.style.color = '#ff4444'; }
+                else if (cell.bonus === 'diamond') { cellEl.textContent = '💎'; cellEl.style.color = '#00d2ff'; }
+                else if (cell.bonus === 'life') { cellEl.textContent = '💖'; cellEl.style.color = '#ff6b6b'; }
+                else if (cell.bonus === 'glasses') { cellEl.textContent = '🕶️'; cellEl.style.color = '#ffd93d'; }
+                else if (cell.bonus === 'map') { cellEl.textContent = '🗺️'; cellEl.style.color = 'var(--map)'; }
+                else if (cell.adjacentMines > 0) { cellEl.textContent = cell.adjacentMines; cellEl.className = `cell revealed peeked number-${cell.adjacentMines}`; }
+                else cellEl.textContent = '';
+                setTimeout(() => {
+                    if (!cell.revealed && !cell.flagged && !gameOver && !gameWon) {
+                        cellEl.classList.remove('peeked');
+                        cellEl.textContent = cell.flagged ? '🚩' : '';
+                        cellEl.style.color = '';
+                        cellEl.style.background = '';
+                        cellEl.style.border = '';
+                        cellEl.className = cell.flagged ? 'cell flagged' : 'cell';
+                    }
+                }, 2000);
+                deactivateGlasses();
+            }
+
+            function revealCell(row, col) {
+                const cell = board[row][col];
+                if (cell.revealed || cell.flagged || gameOver || gameWon) return;
+                if (glassesActive) { peekCell(row, col); return; }
+                if (!firstClickDone) {
+                    firstClickDone = true;
+                    placeMinesAndBonuses(row, col);
+                    startTimer();
+                }
+                if (cell.mine) {
+                    cell.revealed = true;
+                    const cellEl = document.querySelector(`.cell[data-row="${row}"][data-col="${col}"]`);
+                    if (cellEl) { cellEl.classList.add('revealed', 'mine-exploded'); cellEl.textContent = '💣'; }
+                    const died = loseLife();
+                    if (!died && lives > 0) {
+                        setTimeout(() => {
+                            cell.revealed = false;
+                            if (cellEl && !gameOver) {
+                                cellEl.classList.remove('revealed', 'mine-exploded');
+                                cellEl.textContent = '';
+                                cellEl.className = 'cell';
+                            }
+                        }, 500);
+                    }
+                    if (died) revealAllMines();
+                    renderBoard();
+                    return;
+                }
+                const newly = floodFill(row, col);
+                revealedCount += newly;
+                addScore(newly * 10);
+                renderBoard();
+                pendingPopups.forEach(p => showBonusPopup(p.row, p.col, p.icon));
+                pendingPopups = [];
+                checkWinCondition();
+            }
+
+            function floodFill(row, col) {
+                if (row < 0 || row >= config.rows || col < 0 || col >= config.cols) return 0;
+                const cell = board[row][col];
+                if (cell.revealed || cell.flagged || cell.mine) return 0;
+                cell.revealed = true;
+                let cnt = 1;
+                checkBonus(row, col);
+                if (cell.adjacentMines === 0 && !cell.mine) {
+                    for (let dr = -1; dr <= 1; dr++)
+                        for (let dc = -1; dc <= 1; dc++)
+                            if (dr !== 0 || dc !== 0) cnt += floodFill(row + dr, col + dc);
+                }
+                return cnt;
+            }
+
+            function checkBonus(row, col) {
+                const cell = board[row][col];
+                if (!cell.bonus || !cell.revealed) return;
+                const b = cell.bonus;
+                cell.bonus = null;
+                switch (b) {
+                    case 'life':
+                        addLife();
+                        pendingPopups.push({row, col, icon: '💖'});
+                        break;
+                    case 'glasses':
+                        glassesCount++;
+                        updateGlassesDisplay();
+                        pendingPopups.push({row, col, icon: '🕶️'});
+                        messageArea.textContent = '🕶️ Найдены очки!';
+                        break;
+                    case 'diamond':
+                        addScore(100);
+                        pendingPopups.push({row, col, icon: '💎'});
+                        messageArea.textContent = '💎 +100 очков!';
+                        break;
+                    case 'map':
+                        activateMap();
+                        pendingPopups.push({row, col, icon: '🗺️'});
+                        messageArea.textContent = '🗺️ Карта активирована!';
+                        break;
+                }
+                setTimeout(() => {
+                    if (messageArea && (
+                        messageArea.textContent.includes('Найдены') ||
+                        messageArea.textContent.includes('+100') ||
+                        messageArea.textContent.includes('Карта активирована')
+                    )) messageArea.textContent = '';
+                }, 2500);
+            }
+
+            function revealAllMines() {
+                for (let r = 0; r < config.rows; r++)
+                    for (let c = 0; c < config.cols; c++)
+                        if (board[r][c].mine) board[r][c].revealed = true;
+                renderBoard();
+            }
+
+            function toggleFlag(row, col) {
+                if (gameOver || gameWon) return;
+                const cell = board[row][col];
+                if (cell.revealed) return;
+                if (glassesActive) { deactivateGlasses(); return; }
+                cell.flagged = !cell.flagged;
+                flagsPlaced += cell.flagged ? 1 : -1;
+                updateMineCounter();
+                renderBoard();
+                checkWinCondition();
+            }
+
+            function checkWinCondition() {
+                if (gameOver || gameWon) return;
+                const allSafeRevealed = revealedCount >= totalSafeCells;
+                let allMinesFlagged = true, correctFlags = 0;
+                for (let r = 0; r < config.rows; r++) {
+                    for (let c = 0; c < config.cols; c++) {
+                        if (board[r][c].mine && !board[r][c].flagged) allMinesFlagged = false;
+                        if (board[r][c].mine && board[r][c].flagged) correctFlags++;
+                        if (!board[r][c].mine && board[r][c].flagged) allMinesFlagged = false;
+                    }
+                }
+                if (allSafeRevealed && allMinesFlagged && correctFlags === totalMines) {
+                    endGame(true, '🎉 Победа!');
+                }
+            }
+
+            function endGame(won, msg) {
+                if (gameOver || gameWon) return;
+                gameOver = !won;
+                gameWon = won;
+                stopTimer();
+                if (messageArea) messageArea.textContent = msg;
+                if (won) {
+                    addScore(500);
+                    const saved = saveRecord(currentMode, timerSeconds, score);
+                    if (saved && messageArea) messageArea.textContent += ' 🏆 Новый рекорд!';
+                }
+                updateRecordsDisplay();
+                revealAllMines();
+            }
+
+            function renderBoard() {
+                if (!boardEl) return;
+                const cellSize = window.innerWidth <= 400 ? 26 : (window.innerWidth <= 600 ? 30 : 40);
+                boardEl.style.gridTemplateColumns = `repeat(${config.cols}, ${cellSize}px)`;
+                boardEl.style.gridTemplateRows = `repeat(${config.rows}, ${cellSize}px)`;
+                let html = '';
+                for (let r = 0; r < config.rows; r++) {
+                    for (let c = 0; c < config.cols; c++) {
+                        const cell = board[r][c];
+                        let cls = 'cell', cont = '';
+                        if (cell.revealed) {
+                            cls += ' revealed';
+                            if (cell.mine) { cont = '💣'; if (gameOver && !gameWon) cls += ' mine-exploded'; }
+                            else if (cell.bonus === 'diamond') cont = '💎';
+                            else if (cell.bonus === 'life') cont = '💖';
+                            else if (cell.bonus === 'glasses') cont = '🕶️';
+                            else if (cell.bonus === 'map') cont = '🗺️';
+                            else if (cell.adjacentMines > 0) { cont = cell.adjacentMines; cls += ` number-${cell.adjacentMines}`; }
+                        } else if (cell.flagged) { cls += ' flagged'; cont = '🚩'; }
+                        html += `<div class="${cls}" data-row="${r}" data-col="${c}">${cont}</div>`;
+                    }
+                }
+                boardEl.innerHTML = html;
+                document.querySelectorAll('.cell').forEach(el => {
+                    el.addEventListener('click', () => revealCell(parseInt(el.dataset.row), parseInt(el.dataset.col)));
+                    el.addEventListener('contextmenu', (e) => {
+                        e.preventDefault();
+                        toggleFlag(parseInt(el.dataset.row), parseInt(el.dataset.col));
+                    });
+                });
+            }
+
+            // Обработчики
+            if (glassesIndicator) glassesIndicator.addEventListener('click', () => {
+                if (glassesCount > 0 && !glassesActive && !gameOver && !gameWon) activateGlasses();
+            });
+            if (restartBtn) restartBtn.addEventListener('click', resetGame);
+            if (clearRecordsBtn) clearRecordsBtn.addEventListener('click', clearRecords);
+
+            difficultyBtns.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    difficultyBtns.forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    currentMode = btn.dataset.mode;
+                    resetGame();
+                });
+            });
+
+            modeBtns.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    modeBtns.forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    bonusMode = btn.dataset.bonus === 'true';
+                    resetGame();
+                });
+            });
+
+            document.addEventListener('contextmenu', e => {
+                if (e.target.closest('.game-board') || e.target.closest('.game-wrapper')) e.preventDefault();
+            });
+
+            // Старт
+            loadRecords();
+            updateRecordsDisplay();
+            resetGame();
+        }
+    })();
+</script>
+</body>
+</html>
